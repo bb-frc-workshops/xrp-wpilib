@@ -11,7 +11,12 @@ namespace websockets {
     }
 
     void WebsocketsServer::listen(uint16_t port) {
+        listen(port, WSString(""));
+    }
+
+    void WebsocketsServer::listen(uint16_t port, WSString uri) {
         this->_server->listen(port);
+        _uri = uri;
     }
 
     bool WebsocketsServer::poll() {
@@ -63,6 +68,36 @@ namespace websockets {
         if(tcpClient->available() == false) return {};
         
         auto params = recvHandshakeRequest(*tcpClient);
+
+        WSString openingHeader(params.head);
+        WSString token;
+        std::vector <WSString> openingHeaderParts;
+        size_t pos = 0;
+        while ((pos = openingHeader.find(" ")) != std::string::npos) {
+            token = openingHeader.substr(0, pos);
+            openingHeaderParts.push_back(token);
+            openingHeader.erase(0, pos + 1);
+        }
+        openingHeaderParts.push_back(openingHeader);
+
+        if (openingHeaderParts.size() < 2) {
+            tcpClient->close();
+            return {};
+        }
+
+        if (openingHeaderParts.at(0) != "GET") {
+            tcpClient->close();
+            return {};
+        }
+
+        if (_uri != "") {
+            // we have a URI that we care about
+            if (openingHeaderParts.at(1).find(_uri) != 0) {
+                tcpClient->close();
+                return {};
+            }
+        }
+
         
         if(params.headers["Connection"].find("Upgrade") == std::string::npos) return {};
         if(params.headers["Upgrade"] != "websocket") return {}; 

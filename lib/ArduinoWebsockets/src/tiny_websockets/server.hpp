@@ -17,6 +17,7 @@ namespace websockets {
 
     bool available();
     void listen(uint16_t port);
+    void listen(uint16_t port, WSString uri);
     bool poll();
     WebsocketsClient accept();
 
@@ -24,5 +25,6 @@ namespace websockets {
 
   private:
     network::TcpServer* _server;
+    WSString _uri;
   };
 }

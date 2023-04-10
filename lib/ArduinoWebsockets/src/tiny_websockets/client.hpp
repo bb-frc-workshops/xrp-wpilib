@@ -77,6 +77,14 @@ namespace websockets {
       _endpoint.setUseMasking(useMasking);
     }
 
+    void setId(int id) {
+      _id = id;
+    }
+
+    int getId() {
+      return _id;
+    }
+
     void setInsecure();
   #ifdef ESP8266
     void setFingerprint(const char* fingerprint);
@@ -99,6 +107,7 @@ namespace websockets {
     bool _connectionOpen;
     MessageCallback _messagesCallback;
     EventCallback _eventsCallback;
+    int _id;
     enum SendMode {
       SendMode_Normal,
       SendMode_Streaming

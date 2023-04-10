@@ -4,11 +4,15 @@
 
 #include <vector>
 
+#include "robot.h"
+
 using namespace websockets;
 
 WebsocketsServer server;
 std::vector< std::pair<int, WebsocketsClient> > wsClients;
 int nextClientId = 1;
+
+xrp::Robot robot;
 
 void setup() {
   Serial.begin(115200);
@@ -37,6 +41,7 @@ void setup() {
   Serial.print(WiFi.localIP());
   Serial.print(", port: ");
   Serial.println(3300);
+
 }
 
 void pollWsClients() {
@@ -55,8 +60,33 @@ void onWsMessage(WebsocketsClient& client, WebsocketsMessage message) {
       return;
     }
 
+    // Hand this off to our processor
+    // DEMO
     if (jsonDoc.containsKey("type")) {
-      Serial.println(jsonDoc["type"].as<const char*>());
+      if (jsonDoc["type"] == "PWM") {
+        
+        int channel = atoi((jsonDoc["device"]).as<WSString>().c_str());
+        
+        if (jsonDoc.containsKey("data")) {
+          auto data = jsonDoc["data"];
+          if (data.containsKey("<speed")) {
+            double value = atof((data["<speed"]).as<WSString>().c_str());
+            Serial.print("PWM(");
+            Serial.print(channel);
+            Serial.print(") - ");
+            Serial.println(value);
+            robot.setPwmValue(channel, value);
+          }
+        }
+        // if (jsonDoc.containsKey("<speed")) {
+        //   Serial.println("Speed Message");
+        //   double value = atof((jsonDoc["<speed"]).as<WSString>().c_str());
+        //   robot.setPwmValue(channel, value);
+        // }
+        // else if (jsonDoc.containsKey("<position")) {
+        //   Serial.println("Position Message");
+        // }
+      }
     }
   }
 }

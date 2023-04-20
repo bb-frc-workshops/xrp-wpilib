@@ -7,7 +7,7 @@
 #include "robot.h"
 #include "wpilibws_processor.h"
 
-#define USE_AP false
+#define USE_AP true
 
 using namespace websockets;
 
@@ -28,7 +28,7 @@ void onDSEnabledMessage(bool enabled) {
 }
 
 void onPWMMessage(int channel, double value) {
-  // robot.setPwmValue(channel, value);
+  robot.setPwmValue(channel, value);
 }
 
 void hookupWSMessageHandlers() {

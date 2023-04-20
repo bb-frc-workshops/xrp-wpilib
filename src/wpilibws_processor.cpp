@@ -42,7 +42,7 @@ namespace wpilibws {
 
     // DEMO: We only care about the speed values (assuming PWM is init-ed)
     if (data.containsKey("<speed")) {
-      double value = atof(data["<speed"].as<const char*>());
+      double value = atof(data["<speed"].as<std::string>().c_str());
       this->_pwmCallback(channel, value);
     }
   }

@@ -5,14 +5,37 @@
 #include <vector>
 
 #include "robot.h"
+#include "wpilibws_processor.h"
+
+#define USE_AP true
 
 using namespace websockets;
+
 
 WebsocketsServer server;
 std::vector< std::pair<int, WebsocketsClient> > wsClients;
 int nextClientId = 1;
 
+wpilibws::WPILibWSProcessor wsMsgProcessor;
+
 xrp::Robot robot;
+
+std::unordered_map<WSString, int> messageCounts;
+
+void onDSEnabledMessage(bool enabled) {
+  Serial.print("DS Enabled: ");
+  Serial.println(enabled);
+}
+
+void onPWMMessage(int channel, double value) {
+  robot.setPwmValue(channel, value);
+}
+
+void hookupWSMessageHandlers() {
+  // Hook up the event listeners to the message processor
+  wsMsgProcessor.onDSEnabledMessage(onDSEnabledMessage);
+  wsMsgProcessor.onPWMMessage(onPWMMessage);
+}
 
 void setup() {
   Serial.begin(115200);
@@ -23,14 +46,25 @@ void setup() {
     while (true);
   }
 
-  Serial.println("Setting up Access Point...");
-  bool result = WiFi.softAP("XRP-WPILib", "0123456789");
-  if (result == true) {
-    Serial.println("Ready");
+  WiFi.setHostname("XRP-Bot");
+
+  if (USE_AP) {
+    Serial.println("Setting up Access Point...");
+    bool result = WiFi.softAP("XRP-WPILib", "0123456789");
+    if (result == true) {
+      Serial.println("Ready");
+    }
+    else {
+      Serial.println("Failed...");
+    }
   }
   else {
-    Serial.println("Failed...");
+    Serial.println("Connecting to AP");
+    WiFi.begin("Meowza", "w1nthr0p");
+    Serial.println("Connected?!");
   }
+
+  hookupWSMessageHandlers();
 
   // Set up the server to listen AND only respond to an appropriate URI
   server.listen(3300, "/wpilibws");
@@ -52,6 +86,9 @@ void pollWsClients() {
 
 void onWsMessage(WebsocketsClient& client, WebsocketsMessage message) {
   if (message.isText()) {
+    if (message.data().indexOf("\"PWM\"") == -1 && message.data().indexOf("\"DriverStation\"") == -1) {
+      return;
+    }
     // Process the message
     StaticJsonDocument<512> jsonDoc;
     DeserializationError error = deserializeJson(jsonDoc, message.data());
@@ -61,38 +98,17 @@ void onWsMessage(WebsocketsClient& client, WebsocketsMessage message) {
     }
 
     // Hand this off to our processor
-    // DEMO
+    wsMsgProcessor.processMessage(jsonDoc);
+
     if (jsonDoc.containsKey("type")) {
-      if (jsonDoc["type"] == "PWM") {
-        
-        int channel = atoi((jsonDoc["device"]).as<WSString>().c_str());
-        
-        if (jsonDoc.containsKey("data")) {
-          auto data = jsonDoc["data"];
-          if (data.containsKey("<speed")) {
-            double value = atof((data["<speed"]).as<WSString>().c_str());
-            Serial.print("PWM(");
-            Serial.print(channel);
-            Serial.print(") - ");
-            Serial.println(value);
-            robot.setPwmValue(channel, value);
-          }
-        }
-        // if (jsonDoc.containsKey("<speed")) {
-        //   Serial.println("Speed Message");
-        //   double value = atof((jsonDoc["<speed"]).as<WSString>().c_str());
-        //   robot.setPwmValue(channel, value);
-        // }
-        // else if (jsonDoc.containsKey("<position")) {
-        //   Serial.println("Position Message");
-        // }
-      }
+      messageCounts[jsonDoc["type"]]++;
     }
   }
 }
 
 void onWsEvent(WebsocketsClient& client, WebsocketsEvent event, String data) {
   if (event == WebsocketsEvent::ConnectionClosed) {
+    Serial.println("Client Connection Closed");
     for (auto it = wsClients.begin(); it != wsClients.end(); it++) {
       if (it->first == client.getId()) {
         Serial.print("Removing Client ID ");
@@ -104,7 +120,8 @@ void onWsEvent(WebsocketsClient& client, WebsocketsEvent event, String data) {
   }
 }
 
-int count = 0;
+// Main (CORE0) Loop
+// This core should process WS messages and update the robot accordingly
 void loop() {
   if (server.poll()) {
     auto client = server.accept();
@@ -124,4 +141,22 @@ void loop() {
   }
 
   pollWsClients();
+}
+
+// DEMO to test robot drive
+int count = 0;
+void loop1() {
+  Serial.print("BADUM ");
+  Serial.println(count++);
+
+  Serial.print("Message Stats as of ");
+  Serial.println(millis());
+  for (auto kv : messageCounts) {
+    Serial.print(kv.first.c_str());
+    Serial.print(" : ");
+    Serial.println(kv.second);
+  }
+  Serial.println("-------------");
+  if (count > 100) count = 0;
+  delay(10000);
 }

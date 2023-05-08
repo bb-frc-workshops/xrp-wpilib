@@ -56,4 +56,12 @@ namespace wpilibws {
       this->_dsEnabledCallback(data[">enabled"].as<bool>());
     }
   }
+
+  void WPILibWSProcessor::handleEncoderMessage(JsonDocument& encoderMsg) {
+    
+  }
+
+  void WPILibWSProcessor::handleDIOMessage(JsonDocument& dioMsg) {
+
+  }
 }

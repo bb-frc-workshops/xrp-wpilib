@@ -18,12 +18,12 @@ namespace xrp {
     _pwmChannels.insert(std::make_pair(4, &_servo1));
     _pwmChannels.insert(std::make_pair(5, &_servo2));
 
-    pinMode(PICO_DEFAULT_LED_PIN, OUTPUT);
+    pinMode(LED_BUILTIN, OUTPUT);
   }
 
   void Robot::setEnabled(bool enabled) {
     this->_enabled = enabled;
-    digitalWrite(PICO_DEFAULT_LED_PIN, enabled ? HIGH : LOW);
+    digitalWrite(LED_BUILTIN, enabled ? HIGH : LOW);
 
     // TODO if we're switching to disabled, reset all PWMs to 0
   }

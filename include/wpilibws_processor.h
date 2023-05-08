@@ -20,6 +20,8 @@ namespace wpilibws {
     private:
       void handlePWMMessage(JsonDocument& pwmMsg);
       void handleDSMessage(JsonDocument& dsMsg);
+      void handleEncoderMessage(JsonDocument& encoderMsg);
+      void handleDIOMessage(JsonDocument& dioMsg);
 
       PWMCallback _pwmCallback;
       DSGenericCallback _dsGenericCallback;

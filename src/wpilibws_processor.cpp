@@ -40,9 +40,15 @@ namespace wpilibws {
     int channel = atoi(pwmMsg["device"].as<const char*>());
     auto data = pwmMsg["data"];
 
-    // DEMO: We only care about the speed values (assuming PWM is init-ed)
     if (data.containsKey("<speed")) {
+      // Speed values are [-1.0, 1.0]
       double value = atof(data["<speed"].as<std::string>().c_str());
+      this->_pwmCallback(channel, value);
+    }
+    else if (data.containsKey("<position")) {
+      // Position information is [0.0, 1.0]. We should convert to [-1.0, 1.0]
+      double value = atof(data["<speed"].as<std::string>().c_str());
+      value = (2.0 * value) - 1.0;
       this->_pwmCallback(channel, value);
     }
   }

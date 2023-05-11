@@ -4,7 +4,9 @@ namespace wpilibws {
   WPILibWSProcessor::WPILibWSProcessor() :
         _pwmCallback([](int, double){}),
         _dsGenericCallback([]() {}),
-        _dsEnabledCallback([](bool) {}) {
+        _dsEnabledCallback([](bool) {}),
+        _encoderInitCallback([](int, bool, int, int){}),
+        _dioCallback([](int, bool){}) {
 
   }
 
@@ -17,6 +19,12 @@ namespace wpilibws {
       }
       else if (jsonMsg["type"] == "DriverStation") {
         this->handleDSMessage(jsonMsg);
+      }
+      else if (jsonMsg["type"] == "Encoder") {
+        this->handleEncoderMessage(jsonMsg);
+      }
+      else if (jsonMsg["type"] == "DIO") {
+        this->handleDIOMessage(jsonMsg);
       }
     }
   }
@@ -32,6 +40,14 @@ namespace wpilibws {
 
   void WPILibWSProcessor::onDSEnabledMessage(DSEnabledCallback callback) {
     this->_dsEnabledCallback = callback;
+  }
+
+  void WPILibWSProcessor::onEncoderInitMessage(EncoderInitCallback callback) {
+    this->_encoderInitCallback = callback;
+  }
+
+  void WPILibWSProcessor::onDIOMessage(DIOCallback callback) {
+    this->_dioCallback = callback;
   }
 
   // Privates
@@ -64,10 +80,31 @@ namespace wpilibws {
   }
 
   void WPILibWSProcessor::handleEncoderMessage(JsonDocument& encoderMsg) {
-    
+    int deviceNum = atoi(encoderMsg["device"].as<const char*>());
+    auto data = encoderMsg["data"];
+
+    if (data.containsKey("<init")) {
+      bool initValue = data["<init"];
+      int chA = -1;
+      int chB = -1;
+
+      if (data.containsKey("<channel_a")) {
+        chA = data["<channel_a"];
+      }
+      if (data.containsKey("<channel_b")) {
+        chB = data["<channel_b"];
+      }
+
+      this->_encoderInitCallback(deviceNum, initValue, chA, chB);
+    }
   }
 
   void WPILibWSProcessor::handleDIOMessage(JsonDocument& dioMsg) {
+    int channel = atoi(dioMsg["device"].as<const char*>());
+    auto data = dioMsg["data"];
 
+    if (data.containsKey("<>value")) {
+      this->_dioCallback(channel, data["<>value"]);
+    }
   }
 }

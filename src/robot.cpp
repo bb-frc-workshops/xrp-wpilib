@@ -1,5 +1,8 @@
 #include "robot.h"
 #include <Arduino.h>
+#include "quadrature_encoder.pio.h"
+
+#define USER_BUTTON_PIN 22
 
 namespace xrp {
   Robot::Robot() : 
@@ -18,17 +21,46 @@ namespace xrp {
     _pwmChannels.insert(std::make_pair(4, &_servo1));
     _pwmChannels.insert(std::make_pair(5, &_servo2));
 
+    // TODO Prep I2C connection to gyro
+
+    // Set up encoders
+    uint offset0 = pio_add_program(pio0, &quadrature_encoder_program);
+    // Left Encoder - State Machine 0
+    quadrature_encoder_program_init(pio0, 0, offset0, 4, 0);
+    // Right Encoder - State Machine 1
+    quadrature_encoder_program_init(pio0, 1, offset0, 12, 0);
+    // Motor 3 Encoder - State Machine 2
+    quadrature_encoder_program_init(pio0, 2, offset0, 0, 0);
+    // Motor 4 Encoder - State Machine 3
+    quadrature_encoder_program_init(pio0, 3, offset0, 8, 0);
+
     pinMode(LED_BUILTIN, OUTPUT);
+
+    // Set up the user button pin as input
+    pinMode(USER_BUTTON_PIN, INPUT_PULLUP);
   }
 
   void Robot::setEnabled(bool enabled) {
+    // TEMP: This prevents the motors from starting off with some arbitrary speed
+    if (!this->_enabled && enabled) {
+      setPwmValue(0, 0, true);
+      setPwmValue(1, 0, true);
+    }
     this->_enabled = enabled;
-    digitalWrite(LED_BUILTIN, enabled ? HIGH : LOW);
+    // digitalWrite(LED_BUILTIN, enabled ? HIGH : LOW);
 
     // TODO if we're switching to disabled, reset all PWMs to 0
+    // Assume that all PWMs are speed controllers, so 0 means no movement
   }
 
   void Robot::setPwmValue(int channel, double value) {
+    setPwmValue(channel, value, false);
+  }
+
+  void Robot::setPwmValue(int channel, double value, bool override) {
+    if (!this->_enabled && !override) {
+      return;
+    }
 
     if (_pwmChannels.count(channel) > 0) {
       auto pwmChannel = _pwmChannels[channel];
@@ -36,7 +68,18 @@ namespace xrp {
     }
   }
 
+  void Robot::setDioValue(int channel, bool value) {
+    // TEMP
+    if (channel == 1) {
+      digitalWrite(LED_BUILTIN, value ? HIGH : LOW);
+    }
+  }
+
   // PWMChannel
+  PWMChannel::PWMChannel(int pin) : _pin(pin) {
+    pinMode(pin, OUTPUT);
+  }
+
   void PWMChannel::setValue(double value) {
     // Convert (-1.0, 1.0) to (0, 255)
     int val = ((value + 1.0) / 2.0) * 255;

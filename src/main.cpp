@@ -25,16 +25,34 @@ std::unordered_map<WSString, int> messageCounts;
 void onDSEnabledMessage(bool enabled) {
   Serial.print("DS Enabled: ");
   Serial.println(enabled);
+  robot.setEnabled(enabled);
 }
 
 void onPWMMessage(int channel, double value) {
   robot.setPwmValue(channel, value);
 }
 
+void onEncoderInitMessage(int channel, bool init, int chA, int chB) {
+  Serial.print("Encoder(");
+  Serial.print(channel);
+  Serial.print(") - init? ");
+  Serial.print(init);
+  Serial.print(" - chA: ");
+  Serial.print(chA);
+  Serial.print(" - chB: ");
+  Serial.println(chB);
+}
+
+void onDIOMessage(int channel, bool value) {
+  robot.setDioValue(channel, value);
+}
+
 void hookupWSMessageHandlers() {
   // Hook up the event listeners to the message processor
   wsMsgProcessor.onDSEnabledMessage(onDSEnabledMessage);
   wsMsgProcessor.onPWMMessage(onPWMMessage);
+  wsMsgProcessor.onEncoderInitMessage(onEncoderInitMessage);
+  wsMsgProcessor.onDIOMessage(onDIOMessage);
 }
 
 void setup() {
@@ -86,9 +104,9 @@ void pollWsClients() {
 
 void onWsMessage(WebsocketsClient& client, WebsocketsMessage message) {
   if (message.isText()) {
-    if (message.data().indexOf("\"PWM\"") == -1 && message.data().indexOf("\"DriverStation\"") == -1) {
-      return;
-    }
+    // if (message.data().indexOf("\"PWM\"") == -1 && message.data().indexOf("\"DriverStation\"") == -1) {
+    //   return;
+    // }
     // Process the message
     StaticJsonDocument<512> jsonDoc;
     DeserializationError error = deserializeJson(jsonDoc, message.data());

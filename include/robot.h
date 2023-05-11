@@ -17,7 +17,7 @@ namespace xrp {
   class PWMChannel {
     public:
       PWMChannel() : _pin(-1) {}
-      PWMChannel(int pin) : _pin(pin) {}
+      PWMChannel(int pin);
       virtual void setValue(double value);
 
     protected:
@@ -41,9 +41,17 @@ namespace xrp {
       void setEnabled(bool enabled);
       
       void setPwmValue(int channel, double value);
+      void setDioValue(int channel, bool value);
+
+      // Periodic updates needed
+      void periodic();
 
     private:
       bool _enabled;
+
+      void setPwmValue(int channel, double value, bool override);
+
+      // Encoder Values
 
       // Onboard Hardware
       Motor _leftMotor;

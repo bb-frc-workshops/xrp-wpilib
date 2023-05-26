@@ -160,6 +160,19 @@ void loop() {
   }
 
   pollWsClients();
+
+  while (rp2040.fifo.available()) {
+    uint32_t data = rp2040.fifo.pop();
+
+    if (data == ENCODER_DATA_AVAILABLE) {
+      auto activeEncoders = robot.getActiveEncoderDeviceIds();
+      for (auto& encId : activeEncoders) {
+        int encVal = robot.getEncoderValueByDeviceId(encId);
+        Serial.printf("Encoder ID %d: %d\n", encId, encVal);
+      }
+
+    }
+  }
 }
 
 void loop1() {

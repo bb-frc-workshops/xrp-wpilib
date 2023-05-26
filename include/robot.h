@@ -33,13 +33,13 @@ namespace xrp {
       int _enPin;
       int _phPin;
   };
-  
+
   class Robot {
     public:
       Robot();
-      
+
       void setEnabled(bool enabled);
-      
+
       void setPwmValue(int channel, double value);
       void setDioValue(int channel, bool value);
 
@@ -63,7 +63,10 @@ namespace xrp {
 
       // Channel Maps
       std::unordered_map<int, PWMChannel*> _pwmChannels;
+
+      // Encoder Values
+      int _encoderValues[4] = {0, 0, 0, 0};
   };
 
-  
+
 }

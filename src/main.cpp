@@ -141,6 +141,7 @@ void onWsEvent(WebsocketsClient& client, WebsocketsEvent event, String data) {
 // Main (CORE0) Loop
 // This core should process WS messages and update the robot accordingly
 void loop() {
+  // Do Network Things
   if (server.poll()) {
     auto client = server.accept();
     client.onMessage(onWsMessage);
@@ -153,7 +154,7 @@ void loop() {
       client.setId(nextClientId);
       nextClientId++;
 
-      
+
       Serial.println("Event Hookup complete");
     }
   }
@@ -161,20 +162,9 @@ void loop() {
   pollWsClients();
 }
 
-// DEMO to test robot drive
-int count = 0;
 void loop1() {
-  Serial.print("BADUM ");
-  Serial.println(count++);
+  // Read the encoders
+  robot.periodic();
 
-  Serial.print("Message Stats as of ");
-  Serial.println(millis());
-  for (auto kv : messageCounts) {
-    Serial.print(kv.first.c_str());
-    Serial.print(" : ");
-    Serial.println(kv.second);
-  }
-  Serial.println("-------------");
-  if (count > 100) count = 0;
-  delay(10000);
+  delay(1000);
 }

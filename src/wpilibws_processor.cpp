@@ -13,7 +13,7 @@ namespace wpilibws {
   void WPILibWSProcessor::processMessage(JsonDocument& jsonMsg) {
     // Valid messages should have type, data and device fields
     if (jsonMsg.containsKey("type") && jsonMsg.containsKey("data")) {
-      // Pass off to handlers 
+      // Pass off to handlers
       if (jsonMsg["type"] == "PWM") {
         this->handlePWMMessage(jsonMsg);
       }
@@ -48,6 +48,18 @@ namespace wpilibws {
 
   void WPILibWSProcessor::onDIOMessage(DIOCallback callback) {
     this->_dioCallback = callback;
+  }
+
+  // Message generators
+  std::string WPILibWSProcessor::makeEncoderMessage(int deviceId, int count) {
+    DynamicJsonDocument msg(256);
+    msg["type"] = "Encoder";
+    msg["device"] = std::to_string(deviceId);
+    msg["data"][">count"] = count;
+
+    std::string ret;
+    serializeJson(msg, ret);
+    return ret;
   }
 
   // Privates

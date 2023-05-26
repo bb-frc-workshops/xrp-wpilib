@@ -41,6 +41,9 @@ void onEncoderInitMessage(int channel, bool init, int chA, int chB) {
   Serial.print(chA);
   Serial.print(" - chB: ");
   Serial.println(chB);
+  if (init) {
+    robot.configureEncoder(channel, chA, chB);
+  }
 }
 
 void onDIOMessage(int channel, bool value) {
@@ -99,6 +102,12 @@ void setup() {
 void pollWsClients() {
   for (auto& clientPair : wsClients) {
     clientPair.second.poll();
+  }
+}
+
+void broadcast(std::string msg) {
+  for (auto& clientPair : wsClients) {
+    clientPair.second.send(msg.c_str());
   }
 }
 
@@ -168,7 +177,10 @@ void loop() {
       auto activeEncoders = robot.getActiveEncoderDeviceIds();
       for (auto& encId : activeEncoders) {
         int encVal = robot.getEncoderValueByDeviceId(encId);
-        Serial.printf("Encoder ID %d: %d\n", encId, encVal);
+
+        // Send the WS message
+        auto jsonMsg = wsMsgProcessor.makeEncoderMessage(encId, encVal);
+        broadcast(jsonMsg);
       }
 
     }
@@ -179,5 +191,5 @@ void loop1() {
   // Read the encoders
   robot.periodic();
 
-  delay(1000);
+  delay(50);
 }

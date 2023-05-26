@@ -14,14 +14,15 @@
 #define SERVO_1_PIN 16
 #define SERVO_2_PIN 17
 
+// These are from WPILib
 #define ENCODER_L_CH_A 4
 #define ENCODER_L_CH_B 5
-#define ENCODER_R_CH_A 12
-#define ENCODER_R_CH_B 13
-#define ENCODER_3_CH_A 0
-#define ENCODER_3_CH_B 1
-#define ENCODER_4_CH_A 8
-#define ENCODER_4_CH_B 9
+#define ENCODER_R_CH_A 6
+#define ENCODER_R_CH_B 7
+#define ENCODER_3_CH_A 8
+#define ENCODER_3_CH_B 9
+#define ENCODER_4_CH_A 10
+#define ENCODER_4_CH_B 11
 
 #define ENCODER_CH_MOTOR_L 0
 #define ENCODER_CH_MOTOR_R 1

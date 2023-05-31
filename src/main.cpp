@@ -41,6 +41,9 @@ void onEncoderInitMessage(int channel, bool init, int chA, int chB) {
   Serial.print(chA);
   Serial.print(" - chB: ");
   Serial.println(chB);
+  if (init) {
+    robot.configureEncoder(channel, chA, chB);
+  }
 }
 
 void onDIOMessage(int channel, bool value) {
@@ -102,6 +105,12 @@ void pollWsClients() {
   }
 }
 
+void broadcast(std::string msg) {
+  for (auto& clientPair : wsClients) {
+    clientPair.second.send(msg.c_str());
+  }
+}
+
 void onWsMessage(WebsocketsClient& client, WebsocketsMessage message) {
   if (message.isText()) {
     // if (message.data().indexOf("\"PWM\"") == -1 && message.data().indexOf("\"DriverStation\"") == -1) {
@@ -141,6 +150,7 @@ void onWsEvent(WebsocketsClient& client, WebsocketsEvent event, String data) {
 // Main (CORE0) Loop
 // This core should process WS messages and update the robot accordingly
 void loop() {
+  // Do Network Things
   if (server.poll()) {
     auto client = server.accept();
     client.onMessage(onWsMessage);
@@ -153,28 +163,33 @@ void loop() {
       client.setId(nextClientId);
       nextClientId++;
 
-      
+
       Serial.println("Event Hookup complete");
     }
   }
 
   pollWsClients();
+
+  while (rp2040.fifo.available()) {
+    uint32_t data = rp2040.fifo.pop();
+
+    if (data == ENCODER_DATA_AVAILABLE) {
+      auto activeEncoders = robot.getActiveEncoderDeviceIds();
+      for (auto& encId : activeEncoders) {
+        int encVal = robot.getEncoderValueByDeviceId(encId);
+
+        // Send the WS message
+        auto jsonMsg = wsMsgProcessor.makeEncoderMessage(encId, encVal);
+        broadcast(jsonMsg);
+      }
+
+    }
+  }
 }
 
-// DEMO to test robot drive
-int count = 0;
 void loop1() {
-  Serial.print("BADUM ");
-  Serial.println(count++);
+  // Read the encoders
+  robot.periodic();
 
-  Serial.print("Message Stats as of ");
-  Serial.println(millis());
-  for (auto kv : messageCounts) {
-    Serial.print(kv.first.c_str());
-    Serial.print(" : ");
-    Serial.println(kv.second);
-  }
-  Serial.println("-------------");
-  if (count > 100) count = 0;
-  delay(10000);
+  delay(50);
 }

@@ -1,11 +1,11 @@
 #include "robot.h"
 #include <Arduino.h>
-#include "quadrature_encoder.pio.h"
+#include "quadrature.pio.h"
 
 #define USER_BUTTON_PIN 22
 
 namespace xrp {
-  Robot::Robot() : 
+  Robot::Robot() :
       _enabled(false),
       _leftMotor(LEFT_MOTOR_EN, LEFT_MOTOR_PH),
       _rightMotor(RIGHT_MOTOR_EN, RIGHT_MOTOR_PH),
@@ -24,20 +24,35 @@ namespace xrp {
     // TODO Prep I2C connection to gyro
 
     // Set up encoders
-    uint offset0 = pio_add_program(pio0, &quadrature_encoder_program);
-    // Left Encoder - State Machine 0
-    quadrature_encoder_program_init(pio0, 0, offset0, 4, 0);
-    // Right Encoder - State Machine 1
-    quadrature_encoder_program_init(pio0, 1, offset0, 12, 0);
-    // Motor 3 Encoder - State Machine 2
-    quadrature_encoder_program_init(pio0, 2, offset0, 0, 0);
-    // Motor 4 Encoder - State Machine 3
-    quadrature_encoder_program_init(pio0, 3, offset0, 8, 0);
+    uint offset0 = pio_add_program(pio0, &quadrature_program);
+    quadrature_program_init(pio0, ENCODER_CH_MOTOR_L, offset0, 4, 5);
+    quadrature_program_init(pio0, ENCODER_CH_MOTOR_R, offset0, 12, 13);
+    quadrature_program_init(pio0, ENCODER_CH_MOTOR_3, offset0, 0, 1);
+    quadrature_program_init(pio0, ENCODER_CH_MOTOR_4, offset0, 8, 9);
 
     pinMode(LED_BUILTIN, OUTPUT);
 
     // Set up the user button pin as input
     pinMode(USER_BUTTON_PIN, INPUT_PULLUP);
+  }
+
+  void Robot::configureEncoder(int deviceId, int chA, int chB) {
+    if (chA == ENCODER_L_CH_A && chB == ENCODER_L_CH_B) {
+      // Left Encoder
+      _encoderChannels[deviceId] = ENCODER_CH_MOTOR_L;
+    }
+    else if (chA == ENCODER_R_CH_A && chB == ENCODER_R_CH_B) {
+      // Right Encoder
+      _encoderChannels[deviceId] = ENCODER_CH_MOTOR_R;
+    }
+    else if (chA == ENCODER_3_CH_A && chB == ENCODER_3_CH_B) {
+      // Motor 3 Encoder
+      _encoderChannels[deviceId] = ENCODER_CH_MOTOR_3;
+    }
+    else if (chA == ENCODER_4_CH_A && chB == ENCODER_4_CH_B) {
+      // Motor 4 Encoder
+      _encoderChannels[deviceId] = ENCODER_CH_MOTOR_4;
+    }
   }
 
   void Robot::setEnabled(bool enabled) {
@@ -75,6 +90,49 @@ namespace xrp {
     }
   }
 
+  std::vector<int> Robot::getActiveEncoderDeviceIds() {
+    std::vector<int> ret;
+    for (auto& it: _encoderChannels) {
+      ret.push_back(it.first);
+    }
+
+    return ret;
+  }
+
+  int Robot::getEncoderValueByDeviceId(int deviceId) {
+    if (_encoderChannels.count(deviceId) > 0) {
+      return getEncoderValue(_encoderChannels[deviceId]);
+    }
+    return 0;
+  }
+
+  int Robot::getEncoderValue(int idx) {
+    return _encoderValues[idx];
+  }
+
+  void Robot::periodic() {
+    // Should only be called from core1
+    if (get_core_num() != 1) return;
+
+    // Read off all the encoders
+    for (int i = 0; i < 4; i++) {
+      pio_sm_exec_wait_blocking(pio0, i, pio_encode_in(pio_x, 32));
+      _encoderValues[i] = pio_sm_get_blocking(pio0, i);
+    }
+
+    rp2040.fifo.push(ENCODER_DATA_AVAILABLE);
+
+    // Push values
+
+    // Serial.print("[");
+    // Serial.print(get_core_num());
+    // Serial.print("] ");
+    // Serial.println("Encoder Read Complete");
+    // Serial.print(_encoderValues[0]);
+    // Serial.print(", ");
+    // Serial.println(_encoderValues[1]);
+  }
+
   // PWMChannel
   PWMChannel::PWMChannel(int pin) : _pin(pin) {
     pinMode(pin, OUTPUT);
@@ -88,9 +146,9 @@ namespace xrp {
   }
 
   // Motor
-  Motor::Motor(int enPin, int phPin) : 
-          PWMChannel(-1), 
-          _enPin(enPin), 
+  Motor::Motor(int enPin, int phPin) :
+          PWMChannel(-1),
+          _enPin(enPin),
           _phPin(phPin) {
     pinMode(enPin, OUTPUT);
     pinMode(phPin, OUTPUT);

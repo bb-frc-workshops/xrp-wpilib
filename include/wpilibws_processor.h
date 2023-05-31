@@ -21,6 +21,8 @@ namespace wpilibws {
       void onEncoderInitMessage(const EncoderInitCallback callback);
       void onDIOMessage(const DIOCallback callback);
 
+      std::string makeEncoderMessage(int deviceId, int count);
+
     private:
       void handlePWMMessage(JsonDocument& pwmMsg);
       void handleDSMessage(JsonDocument& dsMsg);

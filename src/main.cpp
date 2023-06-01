@@ -1,16 +1,22 @@
 #include <Arduino.h>
 #include <ArduinoWebsockets.h>
 #include <ArduinoJson.h>
+#include <LittleFS.h>
+
+#include <Wifi.h>
+#include <WiFiMulti.h>
 
 #include <vector>
 
 #include "robot.h"
 #include "wpilibws_processor.h"
+#include "config.h"
 
 #define USE_AP true
 
 using namespace websockets;
 
+XRPConfiguration config;
 
 WebsocketsServer server;
 std::vector< std::pair<int, WebsocketsClient> > wsClients;
@@ -21,6 +27,7 @@ wpilibws::WPILibWSProcessor wsMsgProcessor;
 xrp::Robot robot;
 
 std::unordered_map<WSString, int> messageCounts;
+WiFiMulti multi;
 
 void onDSEnabledMessage(bool enabled) {
   Serial.print("DS Enabled: ");
@@ -33,14 +40,6 @@ void onPWMMessage(int channel, double value) {
 }
 
 void onEncoderInitMessage(int channel, bool init, int chA, int chB) {
-  Serial.print("Encoder(");
-  Serial.print(channel);
-  Serial.print(") - init? ");
-  Serial.print(init);
-  Serial.print(" - chA: ");
-  Serial.print(chA);
-  Serial.print(" - chB: ");
-  Serial.println(chB);
   if (init) {
     robot.configureEncoder(channel, chA, chB);
   }
@@ -59,8 +58,17 @@ void hookupWSMessageHandlers() {
 }
 
 void setup() {
+  // Start up the File system and serial connections
+  LittleFS.begin();
   Serial.begin(115200);
   while (!Serial) {}
+
+  // DEMO ONLY REMOVE BEFORE PRODUCTION USE
+  // LittleFS.format();
+  delay(5000);
+
+  // Load configuration (and create default if one does not exist)
+  config = loadConfiguration();
 
   if (WiFi.status() == WL_NO_MODULE) {
     Serial.println("No WiFi Module");
@@ -69,21 +77,60 @@ void setup() {
 
   WiFi.setHostname("XRP-Bot");
 
-  if (USE_AP) {
-    Serial.println("Setting up Access Point...");
-    bool result = WiFi.softAP("XRP-WPILib", "0123456789");
-    if (result == true) {
-      Serial.println("Ready");
-    }
-    else {
-      Serial.println("Failed...");
-    }
-  }
-  else {
-    Serial.println("Connecting to AP");
-    WiFi.begin("Meowza", "w1nthr0p");
-    Serial.println("Connected?!");
-  }
+  NetworkMode netConfigResult = configureNetwork(config);
+  Serial.print("Actual WiFi Mode: ");
+  Serial.println(netConfigResult == NetworkMode::AP ? "AP" : "STA");
+
+  // Configure Network
+  // bool shouldUseAP = false;
+  // if (config.networkConfig.mode == NetworkMode::AP) {
+  //   shouldUseAP = true;
+  // }
+  // else if (config.networkConfig.mode == NetworkMode::STA) {
+  //   Serial.println("Operating in STA Mode");
+  //   Serial.println("Trying the following networks:");
+  //   for (auto netInfo : config.networkConfig.networkList) {
+  //     Serial.print("* ");
+  //     Serial.println(netInfo.first.c_str());
+  //     multi.addAP(netInfo.first.c_str(), netInfo.second.c_str());
+  //   }
+
+  //   // Attempt to connect
+  //   if (multi.run() != WL_CONNECTED) {
+  //     Serial.println("Failed to connect to any network on list. Falling back to AP");
+  //     shouldUseAP = true;
+  //   }
+  // }
+
+  // if (shouldUseAP) {
+  //   Serial.println("Operating in AP Mode");
+  //   bool result = WiFi.softAP(
+  //         config.networkConfig.defaultAPName.c_str(), 
+  //         config.networkConfig.defaultAPPassword.c_str());
+
+  //   if (result) {
+  //     Serial.println("AP Ready");
+  //   }
+  //   else {
+  //     Serial.println("AP Setup Failed");
+  //   }
+  // }
+
+  // if (USE_AP) {
+  //   Serial.println("Setting up Access Point...");
+  //   bool result = WiFi.softAP("XRP-WPILib", "0123456789");
+  //   if (result == true) {
+  //     Serial.println("Ready");
+  //   }
+  //   else {
+  //     Serial.println("Failed...");
+  //   }
+  // }
+  // else {
+  //   Serial.println("Connecting to AP");
+  //   WiFi.begin("Meowza", "w1nthr0p");
+  //   Serial.println("Connected?!");
+  // }
 
   hookupWSMessageHandlers();
 
@@ -97,6 +144,12 @@ void setup() {
   Serial.print(", port: ");
   Serial.println(3300);
 
+
+  Serial.println("Contents of folder");
+  Dir dir = LittleFS.openDir("/");
+  while (dir.next()) {
+    Serial.println(dir.fileName());
+  }
 }
 
 void pollWsClients() {
@@ -189,7 +242,7 @@ void loop() {
 
 void loop1() {
   // Read the encoders
-  robot.periodic();
+  robot.periodicOnCore1();
 
   delay(50);
 }

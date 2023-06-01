@@ -2,8 +2,6 @@
 #include <Arduino.h>
 #include "quadrature.pio.h"
 
-#define USER_BUTTON_PIN 22
-
 namespace xrp {
   Robot::Robot() :
       _enabled(false),
@@ -33,9 +31,14 @@ namespace xrp {
     pinMode(LED_BUILTIN, OUTPUT);
 
     // Set up the user button pin as input
-    pinMode(USER_BUTTON_PIN, INPUT_PULLUP);
+    pinMode(DIO_BUILTIN_PHYS_USER_BUTTON, INPUT_PULLUP);
+
+    // Pre-register built in DIOs
+    _dioChannels.insert(std::make_pair(0, DIOChannel{true, DIO_BUILTIN_PHYS_USER_BUTTON, false}));
+    _dioChannels.insert(std::make_pair(1, DIOChannel{false, DIO_BUILTIN_PHYS_LED, false}));
   }
 
+  // Hardware Configurations
   void Robot::configureEncoder(int deviceId, int chA, int chB) {
     if (chA == ENCODER_L_CH_A && chB == ENCODER_L_CH_B) {
       // Left Encoder
@@ -53,6 +56,15 @@ namespace xrp {
       // Motor 4 Encoder
       _encoderChannels[deviceId] = ENCODER_CH_MOTOR_4;
     }
+  }
+
+  void Robot::configureDIO(int deviceId, bool isInput) {
+    // We should ignore all DIO channels 11 and below (since these are spoken for in WPILib)
+    if (deviceId <= 11) {
+      return;
+    }
+
+    // TODO We need a list of available IO pins and assignments
   }
 
   void Robot::setEnabled(bool enabled) {
@@ -110,7 +122,7 @@ namespace xrp {
     return _encoderValues[idx];
   }
 
-  void Robot::periodic() {
+  void Robot::periodicOnCore1() {
     // Should only be called from core1
     if (get_core_num() != 1) return;
 
@@ -122,15 +134,16 @@ namespace xrp {
 
     rp2040.fifo.push(ENCODER_DATA_AVAILABLE);
 
-    // Push values
+    // Read off any DIO INPUTs
+    for (auto dioInfo : _dioChannels) {
+      // dioInfo.first = WPILib channel number
+      // dioInfo.second = DIOChannel struct
+      if (dioInfo.second.isInput) {
+        dioInfo.second.value = (digitalRead(dioInfo.second.physicalPin) == HIGH);
+      }
+    }
 
-    // Serial.print("[");
-    // Serial.print(get_core_num());
-    // Serial.print("] ");
-    // Serial.println("Encoder Read Complete");
-    // Serial.print(_encoderValues[0]);
-    // Serial.print(", ");
-    // Serial.println(_encoderValues[1]);
+    rp2040.fifo.push(DIO_DATA_AVAILABLE);
   }
 
   // PWMChannel

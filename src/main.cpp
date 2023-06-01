@@ -12,8 +12,6 @@
 #include "wpilibws_processor.h"
 #include "config.h"
 
-#define USE_AP true
-
 using namespace websockets;
 
 XRPConfiguration config;

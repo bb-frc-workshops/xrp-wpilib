@@ -26,9 +26,10 @@ wpilibws::WPILibWSProcessor wsMsgProcessor;
 
 xrp::Robot robot;
 
-std::unordered_map<WSString, int> messageCounts;
-WiFiMulti multi;
 
+// ===================================================
+// Handlers for INBOUND WS Messages
+// ===================================================
 void onDSEnabledMessage(bool enabled) {
   Serial.print("DS Enabled: ");
   Serial.println(enabled);
@@ -57,6 +58,56 @@ void hookupWSMessageHandlers() {
   wsMsgProcessor.onDIOMessage(onDIOMessage);
 }
 
+// ===================================================
+// WebSocket management functions
+// ===================================================
+void pollWsClients() {
+  for (auto& clientPair : wsClients) {
+    clientPair.second.poll();
+  }
+}
+
+void broadcast(std::string msg) {
+  for (auto& clientPair : wsClients) {
+    clientPair.second.send(msg.c_str());
+  }
+}
+
+void onWsMessage(WebsocketsClient& client, WebsocketsMessage message) {
+  if (message.isText()) {
+    // Process the message
+    StaticJsonDocument<512> jsonDoc;
+    DeserializationError error = deserializeJson(jsonDoc, message.data());
+    if (error) {
+      Serial.println(error.f_str());
+      return;
+    }
+
+    // Hand this off to our processor
+    wsMsgProcessor.processMessage(jsonDoc);
+  }
+}
+
+void onWsEvent(WebsocketsClient& client, WebsocketsEvent event, String data) {
+  if (event == WebsocketsEvent::ConnectionClosed) {
+    Serial.println("Client Connection Closed");
+    for (auto it = wsClients.begin(); it != wsClients.end(); it++) {
+      if (it->first == client.getId()) {
+        Serial.print("Removing Client ID ");
+        Serial.println(client.getId());
+        wsClients.erase(it);
+        break;
+      }
+    }
+  }
+}
+
+
+
+// ===================================================
+// Boot-Up and Main Control Flow
+// ===================================================
+
 void setup() {
   // Start up the File system and serial connections
   LittleFS.begin();
@@ -76,62 +127,17 @@ void setup() {
   }
 
   WiFi.setHostname("XRP-Bot");
+  // TODO mDNS setup?
 
+  // Configure WiFi based off configuration
   NetworkMode netConfigResult = configureNetwork(config);
   Serial.print("Actual WiFi Mode: ");
   Serial.println(netConfigResult == NetworkMode::AP ? "AP" : "STA");
 
-  // Configure Network
-  // bool shouldUseAP = false;
-  // if (config.networkConfig.mode == NetworkMode::AP) {
-  //   shouldUseAP = true;
-  // }
-  // else if (config.networkConfig.mode == NetworkMode::STA) {
-  //   Serial.println("Operating in STA Mode");
-  //   Serial.println("Trying the following networks:");
-  //   for (auto netInfo : config.networkConfig.networkList) {
-  //     Serial.print("* ");
-  //     Serial.println(netInfo.first.c_str());
-  //     multi.addAP(netInfo.first.c_str(), netInfo.second.c_str());
-  //   }
+  // TODO Set up robot hardware overlays based off configuration
 
-  //   // Attempt to connect
-  //   if (multi.run() != WL_CONNECTED) {
-  //     Serial.println("Failed to connect to any network on list. Falling back to AP");
-  //     shouldUseAP = true;
-  //   }
-  // }
 
-  // if (shouldUseAP) {
-  //   Serial.println("Operating in AP Mode");
-  //   bool result = WiFi.softAP(
-  //         config.networkConfig.defaultAPName.c_str(), 
-  //         config.networkConfig.defaultAPPassword.c_str());
-
-  //   if (result) {
-  //     Serial.println("AP Ready");
-  //   }
-  //   else {
-  //     Serial.println("AP Setup Failed");
-  //   }
-  // }
-
-  // if (USE_AP) {
-  //   Serial.println("Setting up Access Point...");
-  //   bool result = WiFi.softAP("XRP-WPILib", "0123456789");
-  //   if (result == true) {
-  //     Serial.println("Ready");
-  //   }
-  //   else {
-  //     Serial.println("Failed...");
-  //   }
-  // }
-  // else {
-  //   Serial.println("Connecting to AP");
-  //   WiFi.begin("Meowza", "w1nthr0p");
-  //   Serial.println("Connected?!");
-  // }
-
+  // Set up WebSocket messages
   hookupWSMessageHandlers();
 
   // Set up the server to listen AND only respond to an appropriate URI
@@ -149,54 +155,6 @@ void setup() {
   Dir dir = LittleFS.openDir("/");
   while (dir.next()) {
     Serial.println(dir.fileName());
-  }
-}
-
-void pollWsClients() {
-  for (auto& clientPair : wsClients) {
-    clientPair.second.poll();
-  }
-}
-
-void broadcast(std::string msg) {
-  for (auto& clientPair : wsClients) {
-    clientPair.second.send(msg.c_str());
-  }
-}
-
-void onWsMessage(WebsocketsClient& client, WebsocketsMessage message) {
-  if (message.isText()) {
-    // if (message.data().indexOf("\"PWM\"") == -1 && message.data().indexOf("\"DriverStation\"") == -1) {
-    //   return;
-    // }
-    // Process the message
-    StaticJsonDocument<512> jsonDoc;
-    DeserializationError error = deserializeJson(jsonDoc, message.data());
-    if (error) {
-      Serial.println(error.f_str());
-      return;
-    }
-
-    // Hand this off to our processor
-    wsMsgProcessor.processMessage(jsonDoc);
-
-    if (jsonDoc.containsKey("type")) {
-      messageCounts[jsonDoc["type"]]++;
-    }
-  }
-}
-
-void onWsEvent(WebsocketsClient& client, WebsocketsEvent event, String data) {
-  if (event == WebsocketsEvent::ConnectionClosed) {
-    Serial.println("Client Connection Closed");
-    for (auto it = wsClients.begin(); it != wsClients.end(); it++) {
-      if (it->first == client.getId()) {
-        Serial.print("Removing Client ID ");
-        Serial.println(client.getId());
-        wsClients.erase(it);
-        break;
-      }
-    }
   }
 }
 
@@ -240,6 +198,8 @@ void loop() {
   }
 }
 
+// Core 1 Loop
+// This should essentially read sensors on a regular basis
 void loop1() {
   // Read the encoders
   robot.periodicOnCore1();

@@ -3,7 +3,7 @@
 #include <ArduinoJson.h>
 #include <LittleFS.h>
 
-#include <Wifi.h>
+#include <WiFi.h>
 #include <WiFiMulti.h>
 
 #include <vector>

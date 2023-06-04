@@ -110,11 +110,10 @@ void setup() {
   // Start up the File system and serial connections
   LittleFS.begin();
   Serial.begin(115200);
-  while (!Serial) {}
 
   // DEMO ONLY REMOVE BEFORE PRODUCTION USE
   // LittleFS.format();
-  delay(5000);
+  // delay(5000);
 
   // Load configuration (and create default if one does not exist)
   config = loadConfiguration();

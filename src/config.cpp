@@ -68,15 +68,15 @@ std::string generateDefaultConfig() {
   network["mode"] = defaultConfig.networkConfig.mode == NetworkMode::AP ? "AP" : "STA";
 
   // DEMO ONLY
-  JsonObject network1 = prefNetworks.createNestedObject();
-  network1["ssid"] = "Test Network 1";
-  network1["password"] = "Test Password";
+  // JsonObject network1 = prefNetworks.createNestedObject();
+  // network1["ssid"] = "Test Network 1";
+  // network1["password"] = "Test Password";
 
-  JsonObject network2 = prefNetworks.createNestedObject();
-  network2["ssid"] = "Test Network 2";
-  network2["password"] = "Test Password";
+  // JsonObject network2 = prefNetworks.createNestedObject();
+  // network2["ssid"] = "Test Network 2";
+  // network2["password"] = "Test Password";
 
-  network["mode"] = "STA";
+  // network["mode"] = "STA";
   // END DEMO
 
   std::string ret;

@@ -29,7 +29,16 @@
 #define ENCODER_CH_MOTOR_3 2
 #define ENCODER_CH_MOTOR_4 3
 
+// DIO - Physical pin mapping for built in things
+#define DIO_BUILTIN_PHYS_USER_BUTTON 22
+#define DIO_BUILTIN_PHYS_LED LED_BUILTIN
+
+// Allowable Analog Pins 26 (ADC0), 27 (ADC1), 28 (ADC2)
+// Onboard Temp Sensor - ADC4
+// XRP Battery voltage - ADC2
+
 #define ENCODER_DATA_AVAILABLE 0xAA
+#define DIO_DATA_AVAILABLE 0xBB
 
 namespace xrp {
   class PWMChannel {
@@ -52,11 +61,18 @@ namespace xrp {
       int _phPin;
   };
 
+  struct DIOChannel {
+    bool isInput;
+    int physicalPin;
+    bool value;
+  };
+
   class Robot {
     public:
       Robot();
 
       void configureEncoder(int deviceId, int chA, int chB);
+      void configureDIO(int deviceId, bool isInput);
 
       void setEnabled(bool enabled);
 
@@ -68,7 +84,7 @@ namespace xrp {
       int getEncoderValue(int idx);
 
       // Periodic updates needed
-      void periodic();
+      void periodicOnCore1();
 
     private:
       bool _enabled;
@@ -88,6 +104,9 @@ namespace xrp {
       // Channel Maps
       std::unordered_map<int, PWMChannel*> _pwmChannels;
       std::unordered_map<int, int> _encoderChannels; // Map from encoder device # to actual
+
+      // Map from WPILib DIO -> Onboard DIO
+      std::unordered_map<int, DIOChannel> _dioChannels;
 
       // Encoder Values
       int _encoderValues[4] = {0, 0, 0, 0};

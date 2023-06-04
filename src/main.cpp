@@ -1,16 +1,20 @@
 #include <Arduino.h>
 #include <ArduinoWebsockets.h>
 #include <ArduinoJson.h>
+#include <LittleFS.h>
+
+#include <WiFi.h>
+#include <WiFiMulti.h>
 
 #include <vector>
 
 #include "robot.h"
 #include "wpilibws_processor.h"
-
-#define USE_AP true
+#include "config.h"
 
 using namespace websockets;
 
+XRPConfiguration config;
 
 WebsocketsServer server;
 std::vector< std::pair<int, WebsocketsClient> > wsClients;
@@ -20,8 +24,10 @@ wpilibws::WPILibWSProcessor wsMsgProcessor;
 
 xrp::Robot robot;
 
-std::unordered_map<WSString, int> messageCounts;
 
+// ===================================================
+// Handlers for INBOUND WS Messages
+// ===================================================
 void onDSEnabledMessage(bool enabled) {
   Serial.print("DS Enabled: ");
   Serial.println(enabled);
@@ -33,14 +39,6 @@ void onPWMMessage(int channel, double value) {
 }
 
 void onEncoderInitMessage(int channel, bool init, int chA, int chB) {
-  Serial.print("Encoder(");
-  Serial.print(channel);
-  Serial.print(") - init? ");
-  Serial.print(init);
-  Serial.print(" - chA: ");
-  Serial.print(chA);
-  Serial.print(" - chB: ");
-  Serial.println(chB);
   if (init) {
     robot.configureEncoder(channel, chA, chB);
   }
@@ -58,47 +56,9 @@ void hookupWSMessageHandlers() {
   wsMsgProcessor.onDIOMessage(onDIOMessage);
 }
 
-void setup() {
-  Serial.begin(115200);
-  while (!Serial) {}
-
-  if (WiFi.status() == WL_NO_MODULE) {
-    Serial.println("No WiFi Module");
-    while (true);
-  }
-
-  WiFi.setHostname("XRP-Bot");
-
-  if (USE_AP) {
-    Serial.println("Setting up Access Point...");
-    bool result = WiFi.softAP("XRP-WPILib", "0123456789");
-    if (result == true) {
-      Serial.println("Ready");
-    }
-    else {
-      Serial.println("Failed...");
-    }
-  }
-  else {
-    Serial.println("Connecting to AP");
-    WiFi.begin("Meowza", "w1nthr0p");
-    Serial.println("Connected?!");
-  }
-
-  hookupWSMessageHandlers();
-
-  // Set up the server to listen AND only respond to an appropriate URI
-  server.listen(3300, "/wpilibws");
-
-  Serial.print(server.available() ? "WS Server running and ready on " : "Server not running on ");
-  Serial.println("XRP Robot");
-  Serial.print("IP Address: ");
-  Serial.print(WiFi.localIP());
-  Serial.print(", port: ");
-  Serial.println(3300);
-
-}
-
+// ===================================================
+// WebSocket management functions
+// ===================================================
 void pollWsClients() {
   for (auto& clientPair : wsClients) {
     clientPair.second.poll();
@@ -113,9 +73,6 @@ void broadcast(std::string msg) {
 
 void onWsMessage(WebsocketsClient& client, WebsocketsMessage message) {
   if (message.isText()) {
-    // if (message.data().indexOf("\"PWM\"") == -1 && message.data().indexOf("\"DriverStation\"") == -1) {
-    //   return;
-    // }
     // Process the message
     StaticJsonDocument<512> jsonDoc;
     DeserializationError error = deserializeJson(jsonDoc, message.data());
@@ -126,10 +83,6 @@ void onWsMessage(WebsocketsClient& client, WebsocketsMessage message) {
 
     // Hand this off to our processor
     wsMsgProcessor.processMessage(jsonDoc);
-
-    if (jsonDoc.containsKey("type")) {
-      messageCounts[jsonDoc["type"]]++;
-    }
   }
 }
 
@@ -144,6 +97,61 @@ void onWsEvent(WebsocketsClient& client, WebsocketsEvent event, String data) {
         break;
       }
     }
+  }
+}
+
+
+
+// ===================================================
+// Boot-Up and Main Control Flow
+// ===================================================
+
+void setup() {
+  // Start up the File system and serial connections
+  LittleFS.begin();
+  Serial.begin(115200);
+
+  // DEMO ONLY REMOVE BEFORE PRODUCTION USE
+  // LittleFS.format();
+  // delay(5000);
+
+  // Load configuration (and create default if one does not exist)
+  config = loadConfiguration();
+
+  if (WiFi.status() == WL_NO_MODULE) {
+    Serial.println("No WiFi Module");
+    while (true);
+  }
+
+  WiFi.setHostname("XRP-Bot");
+  // TODO mDNS setup?
+
+  // Configure WiFi based off configuration
+  NetworkMode netConfigResult = configureNetwork(config);
+  Serial.print("Actual WiFi Mode: ");
+  Serial.println(netConfigResult == NetworkMode::AP ? "AP" : "STA");
+
+  // TODO Set up robot hardware overlays based off configuration
+
+
+  // Set up WebSocket messages
+  hookupWSMessageHandlers();
+
+  // Set up the server to listen AND only respond to an appropriate URI
+  server.listen(3300, "/wpilibws");
+
+  Serial.print(server.available() ? "WS Server running and ready on " : "Server not running on ");
+  Serial.println("XRP Robot");
+  Serial.print("IP Address: ");
+  Serial.print(WiFi.localIP());
+  Serial.print(", port: ");
+  Serial.println(3300);
+
+
+  Serial.println("Contents of folder");
+  Dir dir = LittleFS.openDir("/");
+  while (dir.next()) {
+    Serial.println(dir.fileName());
   }
 }
 
@@ -187,9 +195,11 @@ void loop() {
   }
 }
 
+// Core 1 Loop
+// This should essentially read sensors on a regular basis
 void loop1() {
   // Read the encoders
-  robot.periodic();
+  robot.periodicOnCore1();
 
   delay(50);
 }

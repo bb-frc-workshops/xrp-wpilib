@@ -8,9 +8,13 @@
 
 #include <vector>
 
+#include <Adafruit_LSM6DSOX.h>
+
 #include "robot.h"
 #include "wpilibws_processor.h"
 #include "config.h"
+
+#define GYRO_DATA_AVAILABLE 0xCC
 
 using namespace websockets;
 
@@ -23,6 +27,11 @@ int nextClientId = 1;
 wpilibws::WPILibWSProcessor wsMsgProcessor;
 
 xrp::Robot robot;
+
+Adafruit_LSM6DSOX imu;
+bool imuReady;
+
+float gyroReadings[3];
 
 
 // ===================================================
@@ -100,6 +109,70 @@ void onWsEvent(WebsocketsClient& client, WebsocketsEvent event, String data) {
   }
 }
 
+// IMU Related
+void imuInit() {
+  if (!imu.begin_I2C()) {
+    Serial.println("Failed to find LSM6DSOX");
+    imuReady = false;
+    return;
+  }
+  
+  imuReady = true;
+  Serial.println("--- IMU ---");
+  Serial.println("LSM6DSOX detected. Settings:");
+  Serial.print("Accel Range: ");
+  switch (imu.getAccelRange()) {
+    case LSM6DS_ACCEL_RANGE_2_G:
+      Serial.println("+-2G");
+      break;
+    case LSM6DS_ACCEL_RANGE_4_G:
+      Serial.println("+-4G");
+      break;
+    case LSM6DS_ACCEL_RANGE_8_G:
+      Serial.println("+-8G");
+      break;
+    case LSM6DS_ACCEL_RANGE_16_G:
+      Serial.println("+-16G");
+      break;
+  }
+
+  Serial.print("Gyro Range: ");
+  switch(imu.getGyroRange()) {
+    case LSM6DS_GYRO_RANGE_125_DPS:
+      Serial.println("125 DPS");
+      break;
+    case LSM6DS_GYRO_RANGE_250_DPS:
+      Serial.println("250 DPS");
+      break;
+    case LSM6DS_GYRO_RANGE_500_DPS:
+      Serial.println("500 DPS");
+      break;
+    case LSM6DS_GYRO_RANGE_1000_DPS:
+      Serial.println("1000 DPS");
+      break;
+    case LSM6DS_GYRO_RANGE_2000_DPS:
+      Serial.println("2000 DPS");
+      break;
+    case ISM330DHCX_GYRO_RANGE_4000_DPS:
+      break;
+  }
+}
+
+void imuPeriodicOnCore1() {
+  if (!imuReady) return;
+  if (get_core_num() != 1) return;
+
+  sensors_event_t accel;
+  sensors_event_t gyro;
+  sensors_event_t temp;
+
+  imu.getEvent(&accel, &gyro, &temp);
+  gyroReadings[0] = gyro.gyro.x;
+  gyroReadings[1] = gyro.gyro.y;
+  gyroReadings[2] = gyro.gyro.z;
+
+  rp2040.fifo.push(GYRO_DATA_AVAILABLE);
+}
 
 
 // ===================================================
@@ -110,6 +183,13 @@ void setup() {
   // Start up the File system and serial connections
   LittleFS.begin();
   Serial.begin(115200);
+
+  // Delay a little to let i2c devices boot up
+  delay(1000);
+
+  // Initialize IMU
+  imuInit();
+  
 
   // DEMO ONLY REMOVE BEFORE PRODUCTION USE
   // LittleFS.format();
@@ -192,14 +272,23 @@ void loop() {
       }
 
     }
+    else if (data == DIO_DATA_AVAILABLE) {
+      // TODO Implement
+    }
+    else if (data == GYRO_DATA_AVAILABLE) {
+      // TODO Send gyroReadings
+    }
   }
 }
 
 // Core 1 Loop
 // This should essentially read sensors on a regular basis
 void loop1() {
-  // Read the encoders
+  // Read the encoders and other robot inputs
   robot.periodicOnCore1();
+
+  // Read the gyro
+  imuPeriodicOnCore1();
 
   delay(50);
 }

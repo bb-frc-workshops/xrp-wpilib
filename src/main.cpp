@@ -15,6 +15,7 @@
 #include "config.h"
 
 #define GYRO_DATA_AVAILABLE 0xCC
+#define IMU_I2C_ADDR 0x6B
 
 using namespace websockets;
 
@@ -111,15 +112,15 @@ void onWsEvent(WebsocketsClient& client, WebsocketsEvent event, String data) {
 
 // IMU Related
 void imuInit() {
-  if (!imu.begin_I2C()) {
+  if (!imu.begin_I2C(IMU_I2C_ADDR, &Wire1, 0)) {
     Serial.println("Failed to find LSM6DSOX");
     imuReady = false;
     return;
   }
-  
+
   imuReady = true;
   Serial.println("--- IMU ---");
-  Serial.println("LSM6DSOX detected. Settings:");
+  Serial.println("LSM6DSOX detected");
   Serial.print("Accel Range: ");
   switch (imu.getAccelRange()) {
     case LSM6DS_ACCEL_RANGE_2_G:
@@ -184,12 +185,17 @@ void setup() {
   LittleFS.begin();
   Serial.begin(115200);
 
+  // Set up the I2C pins
+  Wire1.setSCL(19);
+  Wire1.setSDA(18);
+  Wire1.begin();
+
   // Delay a little to let i2c devices boot up
-  delay(1000);
+  delay(2000);
 
   // Initialize IMU
   imuInit();
-  
+
 
   // DEMO ONLY REMOVE BEFORE PRODUCTION USE
   // LittleFS.format();
@@ -226,13 +232,6 @@ void setup() {
   Serial.print(WiFi.localIP());
   Serial.print(", port: ");
   Serial.println(3300);
-
-
-  Serial.println("Contents of folder");
-  Dir dir = LittleFS.openDir("/");
-  while (dir.next()) {
-    Serial.println(dir.fileName());
-  }
 }
 
 // Main (CORE0) Loop

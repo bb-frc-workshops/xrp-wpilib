@@ -171,6 +171,8 @@ void setup() {
   Serial.println(3300);
 }
 
+unsigned long lastStatusPrintTime = 0;
+
 // Main (CORE0) Loop
 // This core should process WS messages and update the robot accordingly
 void loop() {
@@ -182,6 +184,7 @@ void loop() {
 
     if (client.available()) {
       Serial.println("Client accepted...");
+
       // Hook up events
       wsClients.push_back(std::make_pair(nextClientId, client));
       client.setId(nextClientId);
@@ -213,9 +216,22 @@ void loop() {
     }
     else if (data == GYRO_DATA_AVAILABLE) {
       // TODO Send gyroReadings
-      auto jsonMsg = wsMsgProcessor.makeGyroMessage(imu.getGyroRates(), imu.getGyroAngles());
+      imu.setReadLock(true);
+      auto jsonMsg = wsMsgProcessor.makeGyroMessage(imu.getGyroRatesDegPerSec(), imu.getGyroAnglesDeg());
+      imu.setReadLock(false);
       broadcast(jsonMsg);
     }
+
+  }
+
+  delay(5);
+
+  if (millis() - lastStatusPrintTime > 1000) {
+    lastStatusPrintTime = millis();
+    Serial.print("Cycle Count: ");
+    Serial.print(rp2040.getCycleCount64());
+    Serial.print(", Used Heap: ");
+    Serial.println(rp2040.getUsedHeap());
   }
 }
 

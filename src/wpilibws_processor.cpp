@@ -59,7 +59,7 @@ namespace wpilibws {
 
   // Message generators
   std::string WPILibWSProcessor::makeEncoderMessage(int deviceId, int count) {
-    DynamicJsonDocument msg(256);
+    StaticJsonDocument<256> msg;
     msg["type"] = "Encoder";
     msg["device"] = std::to_string(deviceId);
     msg["data"][">count"] = count;
@@ -70,7 +70,7 @@ namespace wpilibws {
   }
 
   std::string WPILibWSProcessor::makeGyroMessage(float rates[3], float angles[3]) {
-    DynamicJsonDocument msg(256);
+    StaticJsonDocument<400> msg;
     msg["type"] = "Gyro";
     msg["device"] = "RomiGyro";
     msg["data"][">rate_x"] = rates[0];

@@ -15,15 +15,17 @@ namespace xrp{
       void init(uint8_t addr, TwoWire *theWire);
       bool isReady() { return _isReady; }
       void setEnabled(bool enabled) { _enabled = enabled; }
+
       void calibrate();
 
       void periodicOnCore1();
+      void setReadLock(bool lock) { _readLock = lock; }
 
       void resetGyro();
       void resetAccel();
 
-      float* getGyroRates() { return _gyroRates; }
-      float* getGyroAngles() { return _gyroAngles; }
+      float* getGyroRatesDegPerSec() { return _gyroRatesDegPerSec; }
+      float* getGyroAnglesDeg() { return _gyroAnglesDeg; }
       float* getAccels() { return _accel; }
 
     private:
@@ -31,12 +33,14 @@ namespace xrp{
       bool _enabled;
       Adafruit_LSM6DSOX _lsm6;
 
-      float _gyroOffsets[3];
-      float _gyroRates[3];
-      float _gyroAngles[3];
+      float _gyroOffsetsDegPerSec[3];
+      float _gyroRatesDegPerSec[3];
+      float _gyroAnglesDeg[3];
       float _accel[3];
 
       unsigned long _lastUpdateTime;
       bool _onePassComplete = false;
+
+      bool _readLock;
   };
 }

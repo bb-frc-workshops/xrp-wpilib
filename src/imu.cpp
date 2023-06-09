@@ -3,6 +3,10 @@
 
 namespace xrp {
 
+  float radToDeg(float angleRad) {
+    return angleRad * 180.0 / PI;
+  }
+
   void LSM6IMU::init(uint8_t addr, TwoWire *theWire) {
     if (!_lsm6.begin_I2C(addr, theWire, 0)) {
       Serial.println("Failed to find LSM6DSOX");
@@ -81,38 +85,35 @@ namespace xrp {
 
       _lsm6.getEvent(&accel, &gyro, &temp);
 
-      minX = min(minX, gyro.gyro.x);
-      maxX = max(maxX, gyro.gyro.x);
-      minY = min(minY, gyro.gyro.y);
-      maxY = max(maxY, gyro.gyro.y);
-      minZ = min(minZ, gyro.gyro.z);
-      maxZ = max(maxZ, gyro.gyro.z);
+      float rateX = radToDeg(gyro.gyro.x);
+      float rateY = radToDeg(gyro.gyro.y);
+      float rateZ = radToDeg(gyro.gyro.z);
 
-      totalX += gyro.gyro.x;
-      totalY += gyro.gyro.y;
-      totalZ += gyro.gyro.z;
+      minX = min(minX, rateX);
+      maxX = max(maxX, rateX);
+      minY = min(minY, rateY);
+      maxY = max(maxY, rateY);
+      minZ = min(minZ, rateZ);
+      maxZ = max(maxZ, rateZ);
+
+      totalX += rateX;
+      totalY += rateY;
+      totalZ += rateZ;
 
       delay(50);
     }
 
-    _gyroOffsets[0] = totalX / NUM_CALIBRATION_SAMPLES;
-    _gyroOffsets[1] = totalY / NUM_CALIBRATION_SAMPLES;
-    _gyroOffsets[2] = totalZ / NUM_CALIBRATION_SAMPLES;
+    _gyroOffsetsDegPerSec[0] = totalX / NUM_CALIBRATION_SAMPLES;
+    _gyroOffsetsDegPerSec[1] = totalY / NUM_CALIBRATION_SAMPLES;
+    _gyroOffsetsDegPerSec[2] = totalZ / NUM_CALIBRATION_SAMPLES;
 
     Serial.println("Calibration Complete");
-    Serial.print("Totals: X(");
-    Serial.print(totalX);
-    Serial.print("), Y(");
-    Serial.print(totalY);
-    Serial.print("), Z(");
-    Serial.print(totalZ);
-    Serial.println(")");
     Serial.print("Offsets: X(");
-    Serial.print(_gyroOffsets[0]);
+    Serial.print(_gyroOffsetsDegPerSec[0]);
     Serial.print("), Y(");
-    Serial.print(_gyroOffsets[1]);
+    Serial.print(_gyroOffsetsDegPerSec[1]);
     Serial.print("), Z(");
-    Serial.print(_gyroOffsets[2]);
+    Serial.print(_gyroOffsetsDegPerSec[2]);
     Serial.println(")");
     Serial.print("Noise: X(");
     Serial.print(maxX - minX);
@@ -130,6 +131,12 @@ namespace xrp {
     if (!_enabled) return;
     if (get_core_num() != 1) return;
 
+    if (_readLock) {
+      Serial.print("READ LOCK - ");
+      Serial.println(millis());
+      return;
+    }
+
     unsigned long currTime = millis();
 
     sensors_event_t accel;
@@ -137,9 +144,13 @@ namespace xrp {
     sensors_event_t temp;
 
     _lsm6.getEvent(&accel, &gyro, &temp);
-    _gyroRates[0] = gyro.gyro.x - _gyroOffsets[0];
-    _gyroRates[1] = gyro.gyro.y - _gyroOffsets[1];
-    _gyroRates[2] = gyro.gyro.z - _gyroOffsets[2];
+
+    float rateX = radToDeg(gyro.gyro.x);
+    float rateY = radToDeg(gyro.gyro.y);
+    float rateZ = radToDeg(gyro.gyro.z);
+    _gyroRatesDegPerSec[0] = rateX - _gyroOffsetsDegPerSec[0];
+    _gyroRatesDegPerSec[1] = rateY - _gyroOffsetsDegPerSec[1];
+    _gyroRatesDegPerSec[2] = rateZ - _gyroOffsetsDegPerSec[2];
 
     if (!_onePassComplete) {
       _onePassComplete = true;
@@ -148,9 +159,9 @@ namespace xrp {
       unsigned long dt = currTime - _lastUpdateTime;
       float dtInSeconds = dt / 1000.0;
 
-      _gyroAngles[0] = _gyroAngles[0] + (_gyroRates[0] * dtInSeconds);
-      _gyroAngles[1] = _gyroAngles[1] + (_gyroRates[1] * dtInSeconds);
-      _gyroAngles[2] = _gyroAngles[2] + (_gyroRates[2] * dtInSeconds);
+      _gyroAnglesDeg[0] = _gyroAnglesDeg[0] + (_gyroRatesDegPerSec[0] * dtInSeconds);
+      _gyroAnglesDeg[1] = _gyroAnglesDeg[1] + (_gyroRatesDegPerSec[1] * dtInSeconds);
+      _gyroAnglesDeg[2] = _gyroAnglesDeg[2] + (_gyroRatesDegPerSec[2] * dtInSeconds);
     }
 
     _lastUpdateTime = currTime;
@@ -160,8 +171,8 @@ namespace xrp {
 
   void LSM6IMU::resetGyro() {
     for (int i = 0; i < 3; i++) {
-      _gyroAngles[i] = 0;
-      _gyroRates[i] = 0;
+      _gyroAnglesDeg[i] = 0;
+      _gyroRatesDegPerSec[i] = 0;
     }
   }
 

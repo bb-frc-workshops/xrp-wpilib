@@ -26,6 +26,9 @@ namespace wpilibws {
       else if (jsonMsg["type"] == "DIO") {
         this->handleDIOMessage(jsonMsg);
       }
+      else if (jsonMsg["type"] == "Gyro") {
+        this->handleGyroMessage(jsonMsg);
+      }
     }
   }
 
@@ -50,12 +53,32 @@ namespace wpilibws {
     this->_dioCallback = callback;
   }
 
+  void WPILibWSProcessor::onGyroInitMessage(GyroInitCallback callback) {
+    this->_gyroInitCallback = callback;
+  }
+
   // Message generators
   std::string WPILibWSProcessor::makeEncoderMessage(int deviceId, int count) {
     DynamicJsonDocument msg(256);
     msg["type"] = "Encoder";
     msg["device"] = std::to_string(deviceId);
     msg["data"][">count"] = count;
+
+    std::string ret;
+    serializeJson(msg, ret);
+    return ret;
+  }
+
+  std::string WPILibWSProcessor::makeGyroMessage(float rates[3], float angles[3]) {
+    DynamicJsonDocument msg(256);
+    msg["type"] = "Gyro";
+    msg["device"] = "RomiGyro";
+    msg["data"][">rate_x"] = rates[0];
+    msg["data"][">rate_y"] = rates[1];
+    msg["data"][">rate_z"] = rates[2];
+    msg["data"][">angle_x"] = angles[0];
+    msg["data"][">angle_y"] = angles[1];
+    msg["data"][">angle_z"] = angles[2];
 
     std::string ret;
     serializeJson(msg, ret);
@@ -117,6 +140,17 @@ namespace wpilibws {
 
     if (data.containsKey("<>value")) {
       this->_dioCallback(channel, data["<>value"]);
+    }
+  }
+
+  void WPILibWSProcessor::handleGyroMessage(JsonDocument& gyroMsg) {
+    std::string gyroName = gyroMsg["device"];
+    auto data = gyroMsg["data"];
+
+    if (data.containsKey("<init")) {
+      bool initValue = data["<init"];
+
+      this->_gyroInitCallback(gyroName, initValue);
     }
   }
 }

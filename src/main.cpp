@@ -11,10 +11,11 @@
 #include <Adafruit_LSM6DSOX.h>
 
 #include "robot.h"
+#include "imu.h"
 #include "wpilibws_processor.h"
 #include "config.h"
 
-#define GYRO_DATA_AVAILABLE 0xCC
+// #define GYRO_DATA_AVAILABLE 0xCC
 #define IMU_I2C_ADDR 0x6B
 
 using namespace websockets;
@@ -28,11 +29,7 @@ int nextClientId = 1;
 wpilibws::WPILibWSProcessor wsMsgProcessor;
 
 xrp::Robot robot;
-
-Adafruit_LSM6DSOX imu;
-bool imuReady;
-
-float gyroReadings[3];
+xrp::LSM6IMU imu;
 
 
 // ===================================================
@@ -58,12 +55,17 @@ void onDIOMessage(int channel, bool value) {
   robot.setDioValue(channel, value);
 }
 
+void onGyroInitMessage(std::string gyroName, bool enabled) {
+  imu.setEnabled(enabled);
+}
+
 void hookupWSMessageHandlers() {
   // Hook up the event listeners to the message processor
   wsMsgProcessor.onDSEnabledMessage(onDSEnabledMessage);
   wsMsgProcessor.onPWMMessage(onPWMMessage);
   wsMsgProcessor.onEncoderInitMessage(onEncoderInitMessage);
   wsMsgProcessor.onDIOMessage(onDIOMessage);
+  wsMsgProcessor.onGyroInitMessage(onGyroInitMessage);
 }
 
 // ===================================================
@@ -110,71 +112,6 @@ void onWsEvent(WebsocketsClient& client, WebsocketsEvent event, String data) {
   }
 }
 
-// IMU Related
-void imuInit() {
-  if (!imu.begin_I2C(IMU_I2C_ADDR, &Wire1, 0)) {
-    Serial.println("Failed to find LSM6DSOX");
-    imuReady = false;
-    return;
-  }
-
-  imuReady = true;
-  Serial.println("--- IMU ---");
-  Serial.println("LSM6DSOX detected");
-  Serial.print("Accel Range: ");
-  switch (imu.getAccelRange()) {
-    case LSM6DS_ACCEL_RANGE_2_G:
-      Serial.println("+-2G");
-      break;
-    case LSM6DS_ACCEL_RANGE_4_G:
-      Serial.println("+-4G");
-      break;
-    case LSM6DS_ACCEL_RANGE_8_G:
-      Serial.println("+-8G");
-      break;
-    case LSM6DS_ACCEL_RANGE_16_G:
-      Serial.println("+-16G");
-      break;
-  }
-
-  Serial.print("Gyro Range: ");
-  switch(imu.getGyroRange()) {
-    case LSM6DS_GYRO_RANGE_125_DPS:
-      Serial.println("125 DPS");
-      break;
-    case LSM6DS_GYRO_RANGE_250_DPS:
-      Serial.println("250 DPS");
-      break;
-    case LSM6DS_GYRO_RANGE_500_DPS:
-      Serial.println("500 DPS");
-      break;
-    case LSM6DS_GYRO_RANGE_1000_DPS:
-      Serial.println("1000 DPS");
-      break;
-    case LSM6DS_GYRO_RANGE_2000_DPS:
-      Serial.println("2000 DPS");
-      break;
-    case ISM330DHCX_GYRO_RANGE_4000_DPS:
-      break;
-  }
-}
-
-void imuPeriodicOnCore1() {
-  if (!imuReady) return;
-  if (get_core_num() != 1) return;
-
-  sensors_event_t accel;
-  sensors_event_t gyro;
-  sensors_event_t temp;
-
-  imu.getEvent(&accel, &gyro, &temp);
-  gyroReadings[0] = gyro.gyro.x;
-  gyroReadings[1] = gyro.gyro.y;
-  gyroReadings[2] = gyro.gyro.z;
-
-  rp2040.fifo.push(GYRO_DATA_AVAILABLE);
-}
-
 
 // ===================================================
 // Boot-Up and Main Control Flow
@@ -194,7 +131,7 @@ void setup() {
   delay(2000);
 
   // Initialize IMU
-  imuInit();
+  imu.init(IMU_I2C_ADDR, &Wire1);
 
 
   // DEMO ONLY REMOVE BEFORE PRODUCTION USE
@@ -276,6 +213,8 @@ void loop() {
     }
     else if (data == GYRO_DATA_AVAILABLE) {
       // TODO Send gyroReadings
+      auto jsonMsg = wsMsgProcessor.makeGyroMessage(imu.getGyroRates(), imu.getGyroAngles());
+      broadcast(jsonMsg);
     }
   }
 }
@@ -286,8 +225,8 @@ void loop1() {
   // Read the encoders and other robot inputs
   robot.periodicOnCore1();
 
-  // Read the gyro
-  imuPeriodicOnCore1();
+  // Read the IMU
+  imu.periodicOnCore1();
 
   delay(50);
 }

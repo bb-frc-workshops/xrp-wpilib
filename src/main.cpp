@@ -132,7 +132,7 @@ void setup() {
 
   // Initialize IMU
   imu.init(IMU_I2C_ADDR, &Wire1);
-
+  imu.calibrate();
 
   // DEMO ONLY REMOVE BEFORE PRODUCTION USE
   // LittleFS.format();

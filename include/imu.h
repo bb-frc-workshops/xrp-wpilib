@@ -5,6 +5,8 @@
 
 #define GYRO_DATA_AVAILABLE 0xCC
 #define ACCEL_DATA_AVAILBLE 0xDD
+#define NUM_CALIBRATION_SAMPLES 100
+
 
 namespace xrp{
   class LSM6IMU {
@@ -13,6 +15,8 @@ namespace xrp{
       void init(uint8_t addr, TwoWire *theWire);
       bool isReady() { return _isReady; }
       void setEnabled(bool enabled) { _enabled = enabled; }
+      void calibrate();
+
       void periodicOnCore1();
 
       void resetGyro();
@@ -27,6 +31,7 @@ namespace xrp{
       bool _enabled;
       Adafruit_LSM6DSOX _lsm6;
 
+      float _gyroOffsets[3];
       float _gyroRates[3];
       float _gyroAngles[3];
       float _accel[3];

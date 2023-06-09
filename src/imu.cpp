@@ -1,4 +1,5 @@
 #include "imu.h"
+#include <limits>
 
 namespace xrp {
 
@@ -50,6 +51,80 @@ namespace xrp {
     }
   }
 
+  void LSM6IMU::calibrate() {
+    if (!_isReady) return;
+
+    float minX = std::numeric_limits<float>::max();
+    float maxX = std::numeric_limits<float>::min();
+    float minY = std::numeric_limits<float>::max();
+    float maxY = std::numeric_limits<float>::min();
+    float minZ = std::numeric_limits<float>::max();
+    float maxZ = std::numeric_limits<float>::min();
+
+    float totalX = 0;
+    float totalY = 0;
+    float totalZ = 0;
+
+    bool ledOn = false;
+    unsigned long lastSwitched = 0;
+
+    for (int i = 0; i < NUM_CALIBRATION_SAMPLES; i++) {
+      if (millis() - lastSwitched > 100) {
+        ledOn = !ledOn;
+        digitalWrite(LED_BUILTIN, ledOn ? HIGH : LOW);
+        lastSwitched = millis();
+      }
+
+      sensors_event_t accel;
+      sensors_event_t gyro;
+      sensors_event_t temp;
+
+      _lsm6.getEvent(&accel, &gyro, &temp);
+
+      minX = min(minX, gyro.gyro.x);
+      maxX = max(maxX, gyro.gyro.x);
+      minY = min(minY, gyro.gyro.y);
+      maxY = max(maxY, gyro.gyro.y);
+      minZ = min(minZ, gyro.gyro.z);
+      maxZ = max(maxZ, gyro.gyro.z);
+
+      totalX += gyro.gyro.x;
+      totalY += gyro.gyro.y;
+      totalZ += gyro.gyro.z;
+
+      delay(50);
+    }
+
+    _gyroOffsets[0] = totalX / NUM_CALIBRATION_SAMPLES;
+    _gyroOffsets[1] = totalY / NUM_CALIBRATION_SAMPLES;
+    _gyroOffsets[2] = totalZ / NUM_CALIBRATION_SAMPLES;
+
+    Serial.println("Calibration Complete");
+    Serial.print("Totals: X(");
+    Serial.print(totalX);
+    Serial.print("), Y(");
+    Serial.print(totalY);
+    Serial.print("), Z(");
+    Serial.print(totalZ);
+    Serial.println(")");
+    Serial.print("Offsets: X(");
+    Serial.print(_gyroOffsets[0]);
+    Serial.print("), Y(");
+    Serial.print(_gyroOffsets[1]);
+    Serial.print("), Z(");
+    Serial.print(_gyroOffsets[2]);
+    Serial.println(")");
+    Serial.print("Noise: X(");
+    Serial.print(maxX - minX);
+    Serial.print("), Y(");
+    Serial.print(maxY - minY);
+    Serial.print("), Z(");
+    Serial.print(maxZ - minZ);
+    Serial.println(")");
+
+    digitalWrite(LED_BUILTIN, LOW);
+  }
+
   void LSM6IMU::periodicOnCore1() {
     if (!_isReady) return;
     if (!_enabled) return;
@@ -62,9 +137,9 @@ namespace xrp {
     sensors_event_t temp;
 
     _lsm6.getEvent(&accel, &gyro, &temp);
-    _gyroRates[0] = gyro.gyro.x;
-    _gyroRates[1] = gyro.gyro.y;
-    _gyroRates[2] = gyro.gyro.z;
+    _gyroRates[0] = gyro.gyro.x - _gyroOffsets[0];
+    _gyroRates[1] = gyro.gyro.y - _gyroOffsets[1];
+    _gyroRates[2] = gyro.gyro.z - _gyroOffsets[2];
 
     if (!_onePassComplete) {
       _onePassComplete = true;

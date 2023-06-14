@@ -1,5 +1,10 @@
 #include "wpilibws_processor.h"
 
+// Utility functions
+double round3dp(double input) {
+  return (int)(input * 1000 + 0.5) / 1000.0;
+}
+
 namespace wpilibws {
   WPILibWSProcessor::WPILibWSProcessor() :
         _pwmCallback([](int, double){}),
@@ -26,6 +31,9 @@ namespace wpilibws {
       else if (jsonMsg["type"] == "DIO") {
         this->handleDIOMessage(jsonMsg);
       }
+      else if (jsonMsg["type"] == "Gyro") {
+        this->handleGyroMessage(jsonMsg);
+      }
     }
   }
 
@@ -50,12 +58,32 @@ namespace wpilibws {
     this->_dioCallback = callback;
   }
 
+  void WPILibWSProcessor::onGyroInitMessage(GyroInitCallback callback) {
+    this->_gyroInitCallback = callback;
+  }
+
   // Message generators
   std::string WPILibWSProcessor::makeEncoderMessage(int deviceId, int count) {
-    DynamicJsonDocument msg(256);
+    StaticJsonDocument<256> msg;
     msg["type"] = "Encoder";
     msg["device"] = std::to_string(deviceId);
     msg["data"][">count"] = count;
+
+    std::string ret;
+    serializeJson(msg, ret);
+    return ret;
+  }
+
+  std::string WPILibWSProcessor::makeGyroMessage(float rates[3], float angles[3]) {
+    StaticJsonDocument<400> msg;
+    msg["type"] = "Gyro";
+    msg["device"] = "RomiGyro";
+    msg["data"][">rate_x"] = round3dp(rates[0]);
+    msg["data"][">rate_y"] = round3dp(rates[1]);
+    msg["data"][">rate_z"] = round3dp(rates[2]);
+    msg["data"][">angle_x"] = round3dp(angles[0]);
+    msg["data"][">angle_y"] = round3dp(angles[1]);
+    msg["data"][">angle_z"] = round3dp(angles[2]);
 
     std::string ret;
     serializeJson(msg, ret);
@@ -117,6 +145,17 @@ namespace wpilibws {
 
     if (data.containsKey("<>value")) {
       this->_dioCallback(channel, data["<>value"]);
+    }
+  }
+
+  void WPILibWSProcessor::handleGyroMessage(JsonDocument& gyroMsg) {
+    std::string gyroName = gyroMsg["device"];
+    auto data = gyroMsg["data"];
+
+    if (data.containsKey("<init")) {
+      bool initValue = data["<init"];
+
+      this->_gyroInitCallback(gyroName, initValue);
     }
   }
 }

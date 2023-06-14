@@ -8,9 +8,15 @@
 
 #include <vector>
 
+#include <Adafruit_LSM6DSOX.h>
+
 #include "robot.h"
+#include "imu.h"
 #include "wpilibws_processor.h"
 #include "config.h"
+
+// #define GYRO_DATA_AVAILABLE 0xCC
+#define IMU_I2C_ADDR 0x6B
 
 using namespace websockets;
 
@@ -23,6 +29,7 @@ int nextClientId = 1;
 wpilibws::WPILibWSProcessor wsMsgProcessor;
 
 xrp::Robot robot;
+xrp::LSM6IMU imu;
 
 
 // ===================================================
@@ -48,12 +55,17 @@ void onDIOMessage(int channel, bool value) {
   robot.setDioValue(channel, value);
 }
 
+void onGyroInitMessage(std::string gyroName, bool enabled) {
+  imu.setEnabled(enabled);
+}
+
 void hookupWSMessageHandlers() {
   // Hook up the event listeners to the message processor
   wsMsgProcessor.onDSEnabledMessage(onDSEnabledMessage);
   wsMsgProcessor.onPWMMessage(onPWMMessage);
   wsMsgProcessor.onEncoderInitMessage(onEncoderInitMessage);
   wsMsgProcessor.onDIOMessage(onDIOMessage);
+  wsMsgProcessor.onGyroInitMessage(onGyroInitMessage);
 }
 
 // ===================================================
@@ -101,7 +113,6 @@ void onWsEvent(WebsocketsClient& client, WebsocketsEvent event, String data) {
 }
 
 
-
 // ===================================================
 // Boot-Up and Main Control Flow
 // ===================================================
@@ -110,6 +121,18 @@ void setup() {
   // Start up the File system and serial connections
   LittleFS.begin();
   Serial.begin(115200);
+
+  // Set up the I2C pins
+  Wire1.setSCL(19);
+  Wire1.setSDA(18);
+  Wire1.begin();
+
+  // Delay a little to let i2c devices boot up
+  delay(2000);
+
+  // Initialize IMU
+  imu.init(IMU_I2C_ADDR, &Wire1);
+  imu.calibrate();
 
   // DEMO ONLY REMOVE BEFORE PRODUCTION USE
   // LittleFS.format();
@@ -146,14 +169,9 @@ void setup() {
   Serial.print(WiFi.localIP());
   Serial.print(", port: ");
   Serial.println(3300);
-
-
-  Serial.println("Contents of folder");
-  Dir dir = LittleFS.openDir("/");
-  while (dir.next()) {
-    Serial.println(dir.fileName());
-  }
 }
+
+unsigned long lastStatusPrintTime = 0;
 
 // Main (CORE0) Loop
 // This core should process WS messages and update the robot accordingly
@@ -166,6 +184,7 @@ void loop() {
 
     if (client.available()) {
       Serial.println("Client accepted...");
+
       // Hook up events
       wsClients.push_back(std::make_pair(nextClientId, client));
       client.setId(nextClientId);
@@ -192,14 +211,38 @@ void loop() {
       }
 
     }
+    else if (data == DIO_DATA_AVAILABLE) {
+      // TODO Implement
+    }
+    else if (data == GYRO_DATA_AVAILABLE) {
+      // TODO Send gyroReadings
+      imu.setReadLock(true);
+      auto jsonMsg = wsMsgProcessor.makeGyroMessage(imu.getGyroRatesDegPerSec(), imu.getGyroAnglesDeg());
+      imu.setReadLock(false);
+      // broadcast(jsonMsg);
+    }
+
+  }
+
+  delay(5);
+
+  if (millis() - lastStatusPrintTime > 1000) {
+    lastStatusPrintTime = millis();
+    Serial.print("Cycle Count: ");
+    Serial.print(rp2040.getCycleCount64());
+    Serial.print(", Used Heap: ");
+    Serial.println(rp2040.getUsedHeap());
   }
 }
 
 // Core 1 Loop
 // This should essentially read sensors on a regular basis
 void loop1() {
-  // Read the encoders
+  // Read the encoders and other robot inputs
   robot.periodicOnCore1();
+
+  // Read the IMU
+  imu.periodicOnCore1();
 
   delay(50);
 }

@@ -31,6 +31,8 @@ wpilibws::WPILibWSProcessor wsMsgProcessor;
 xrp::Robot robot;
 xrp::LSM6IMU imu;
 
+// Chip Identifier
+char chipID[20];
 
 // ===================================================
 // Handlers for INBOUND WS Messages
@@ -118,6 +120,11 @@ void onWsEvent(WebsocketsClient& client, WebsocketsEvent event, String data) {
 // ===================================================
 
 void setup() {
+  // Pick up the ChipID
+  pico_unique_board_id_t id_out;
+  pico_get_unique_board_id(&id_out);
+  sprintf(chipID, "%02x%02x-%02x%02x", id_out.id[4], id_out.id[5], id_out.id[6], id_out.id[7]);
+  
   // Start up the File system and serial connections
   LittleFS.begin();
   Serial.begin(115200);
@@ -137,6 +144,11 @@ void setup() {
   // DEMO ONLY REMOVE BEFORE PRODUCTION USE
   // LittleFS.format();
   // delay(5000);
+
+  // TODO Potentially set the WiFi SSID to include the last 4 bytes of unique_board_id
+  Serial.print("ChipID: ");
+  Serial.println(chipID);
+  
 
   // Load configuration (and create default if one does not exist)
   config = loadConfiguration();
@@ -169,6 +181,7 @@ void setup() {
   Serial.print(WiFi.localIP());
   Serial.print(", port: ");
   Serial.println(3300);
+  
 }
 
 unsigned long lastStatusPrintTime = 0;

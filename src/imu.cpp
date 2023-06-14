@@ -1,5 +1,6 @@
 #include "imu.h"
-#include <limits>
+
+#define NUM_CALIBRATION_SAMPLES 500
 
 namespace xrp {
 
@@ -58,19 +59,24 @@ namespace xrp {
   void LSM6IMU::calibrate() {
     if (!_isReady) return;
 
-    float minX = std::numeric_limits<float>::max();
-    float maxX = std::numeric_limits<float>::min();
-    float minY = std::numeric_limits<float>::max();
-    float maxY = std::numeric_limits<float>::min();
-    float minZ = std::numeric_limits<float>::max();
-    float maxZ = std::numeric_limits<float>::min();
+    sensors_event_t accel;
+    sensors_event_t gyro;
+    sensors_event_t temp;
 
-    float totalX = 0;
-    float totalY = 0;
-    float totalZ = 0;
+    float minX, maxX;
+    float minY, maxY;
+    float minZ, maxZ;
+
+    _lsm6.getEvent(&accel, &gyro, &temp);
+
+    minX = maxX = radToDeg(gyro.gyro.x);
+    minY = maxY = radToDeg(gyro.gyro.y);
+    minZ = maxZ = radToDeg(gyro.gyro.z);
 
     bool ledOn = false;
     unsigned long lastSwitched = 0;
+
+    double totalX, totalY, totalZ;
 
     for (int i = 0; i < NUM_CALIBRATION_SAMPLES; i++) {
       if (millis() - lastSwitched > 100) {
@@ -78,10 +84,6 @@ namespace xrp {
         digitalWrite(LED_BUILTIN, ledOn ? HIGH : LOW);
         lastSwitched = millis();
       }
-
-      sensors_event_t accel;
-      sensors_event_t gyro;
-      sensors_event_t temp;
 
       _lsm6.getEvent(&accel, &gyro, &temp);
 
@@ -100,7 +102,7 @@ namespace xrp {
       totalY += rateY;
       totalZ += rateZ;
 
-      delay(50);
+      delay(10);
     }
 
     _gyroOffsetsDegPerSec[0] = totalX / NUM_CALIBRATION_SAMPLES;

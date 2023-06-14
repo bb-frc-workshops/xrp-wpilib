@@ -1,5 +1,10 @@
 #include "wpilibws_processor.h"
 
+// Utility functions
+double round3dp(double input) {
+  return (int)(input * 1000 + 0.5) / 1000.0;
+}
+
 namespace wpilibws {
   WPILibWSProcessor::WPILibWSProcessor() :
         _pwmCallback([](int, double){}),
@@ -73,12 +78,12 @@ namespace wpilibws {
     StaticJsonDocument<400> msg;
     msg["type"] = "Gyro";
     msg["device"] = "RomiGyro";
-    msg["data"][">rate_x"] = rates[0];
-    msg["data"][">rate_y"] = rates[1];
-    msg["data"][">rate_z"] = rates[2];
-    msg["data"][">angle_x"] = angles[0];
-    msg["data"][">angle_y"] = angles[1];
-    msg["data"][">angle_z"] = angles[2];
+    msg["data"][">rate_x"] = round3dp(rates[0]);
+    msg["data"][">rate_y"] = round3dp(rates[1]);
+    msg["data"][">rate_z"] = round3dp(rates[2]);
+    msg["data"][">angle_x"] = round3dp(angles[0]);
+    msg["data"][">angle_y"] = round3dp(angles[1]);
+    msg["data"][">angle_z"] = round3dp(angles[2]);
 
     std::string ret;
     serializeJson(msg, ret);

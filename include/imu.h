@@ -5,7 +5,7 @@
 
 #define GYRO_DATA_AVAILABLE 0xCC
 #define ACCEL_DATA_AVAILBLE 0xDD
-#define NUM_CALIBRATION_SAMPLES 100
+
 
 
 namespace xrp{

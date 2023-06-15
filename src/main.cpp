@@ -31,6 +31,9 @@ wpilibws::WPILibWSProcessor wsMsgProcessor;
 xrp::Robot robot;
 xrp::LSM6IMU imu;
 
+// Status Vars
+NetworkMode netConfigResult;
+
 // Chip Identifier
 char chipID[20];
 
@@ -114,7 +117,6 @@ void onWsEvent(WebsocketsClient& client, WebsocketsEvent event, String data) {
   }
 }
 
-
 // ===================================================
 // Boot-Up and Main Control Flow
 // ===================================================
@@ -151,7 +153,7 @@ void setup() {
   
 
   // Load configuration (and create default if one does not exist)
-  config = loadConfiguration();
+  config = loadConfiguration(std::string(chipID));
 
   if (WiFi.status() == WL_NO_MODULE) {
     Serial.println("No WiFi Module");
@@ -162,7 +164,7 @@ void setup() {
   // TODO mDNS setup?
 
   // Configure WiFi based off configuration
-  NetworkMode netConfigResult = configureNetwork(config);
+  netConfigResult = configureNetwork(config);
   Serial.print("Actual WiFi Mode: ");
   Serial.println(netConfigResult == NetworkMode::AP ? "AP" : "STA");
 

@@ -50,10 +50,13 @@ NetworkMode configureNetwork(XRPConfiguration config) {
   return shouldUseAP ? NetworkMode::AP : NetworkMode::STA;
 }
 
-std::string generateDefaultConfig() {
+std::string generateDefaultConfig(std::string chipIdent) {
   StaticJsonDocument<512> config;
 
   XRPConfiguration defaultConfig;
+
+  // Set up the default AP name
+  defaultConfig.networkConfig.defaultAPName = "XRP-WPILib-" + chipIdent;
   
   // Networking API
   JsonObject network = config.createNestedObject("network");
@@ -85,14 +88,14 @@ std::string generateDefaultConfig() {
 }
 
 
-XRPConfiguration loadConfiguration() {
+XRPConfiguration loadConfiguration(std::string chipIdent) {
   XRPConfiguration config;
 
   File f = LittleFS.open("/config.json", "r");
   if (!f) {
     Serial.println("No config file found. Creating default");
     f = LittleFS.open("/config.json", "w");
-    f.print(generateDefaultConfig().c_str());
+    f.print(generateDefaultConfig(chipIdent).c_str());
     f.close();
   }
 

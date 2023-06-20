@@ -18,5 +18,5 @@ class XRPConfiguration {
 
 };
 
-XRPConfiguration loadConfiguration();
+XRPConfiguration loadConfiguration(std::string chipIdent);
 NetworkMode configureNetwork(XRPConfiguration config);

@@ -31,6 +31,11 @@ wpilibws::WPILibWSProcessor wsMsgProcessor;
 xrp::Robot robot;
 xrp::LSM6IMU imu;
 
+// Status Vars
+NetworkMode netConfigResult;
+
+// Chip Identifier
+char chipID[20];
 
 // ===================================================
 // Handlers for INBOUND WS Messages
@@ -112,12 +117,16 @@ void onWsEvent(WebsocketsClient& client, WebsocketsEvent event, String data) {
   }
 }
 
-
 // ===================================================
 // Boot-Up and Main Control Flow
 // ===================================================
 
 void setup() {
+  // Pick up the ChipID
+  pico_unique_board_id_t id_out;
+  pico_get_unique_board_id(&id_out);
+  sprintf(chipID, "%02x%02x-%02x%02x", id_out.id[4], id_out.id[5], id_out.id[6], id_out.id[7]);
+  
   // Start up the File system and serial connections
   LittleFS.begin();
   Serial.begin(115200);
@@ -138,8 +147,13 @@ void setup() {
   // LittleFS.format();
   // delay(5000);
 
+  // TODO Potentially set the WiFi SSID to include the last 4 bytes of unique_board_id
+  Serial.print("ChipID: ");
+  Serial.println(chipID);
+  
+
   // Load configuration (and create default if one does not exist)
-  config = loadConfiguration();
+  config = loadConfiguration(std::string(chipID));
 
   if (WiFi.status() == WL_NO_MODULE) {
     Serial.println("No WiFi Module");
@@ -150,7 +164,7 @@ void setup() {
   // TODO mDNS setup?
 
   // Configure WiFi based off configuration
-  NetworkMode netConfigResult = configureNetwork(config);
+  netConfigResult = configureNetwork(config);
   Serial.print("Actual WiFi Mode: ");
   Serial.println(netConfigResult == NetworkMode::AP ? "AP" : "STA");
 
@@ -169,6 +183,7 @@ void setup() {
   Serial.print(WiFi.localIP());
   Serial.print(", port: ");
   Serial.println(3300);
+  
 }
 
 unsigned long lastStatusPrintTime = 0;

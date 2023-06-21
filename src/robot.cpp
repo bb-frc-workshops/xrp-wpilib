@@ -10,7 +10,8 @@ namespace xrp {
       _motor3(MOTOR_3_EN, MOTOR_3_PH),
       _motor4(MOTOR_4_EN, MOTOR_4_PH),
       _servo1(SERVO_1_PIN),
-      _servo2(SERVO_2_PIN) {
+      _servo2(SERVO_2_PIN),
+      _watchdogTimeout(DEFAULT_WATCHDOG_TIMEOUT_MS) {
 
     _pwmChannels.insert(std::make_pair(0, &_leftMotor));
     _pwmChannels.insert(std::make_pair(1, &_rightMotor));
@@ -89,6 +90,11 @@ namespace xrp {
       return;
     }
 
+    // don't set PWM values if the watchdog is not fed
+    if (!watchdogSatisfied()) {
+      return;
+    }
+
     if (_pwmChannels.count(channel) > 0) {
       auto pwmChannel = _pwmChannels[channel];
       pwmChannel->setValue(value);
@@ -120,6 +126,26 @@ namespace xrp {
 
   int Robot::getEncoderValue(int idx) {
     return _encoderValues[idx];
+  }
+
+  void Robot::setWatchdogTimeout(unsigned long timeout) {
+    _watchdogTimeout = timeout;
+  }
+
+  void Robot::feedWatchdog() {
+    _lastWatchdogFeedTime = millis();
+  }
+
+  bool Robot::watchdogSatisfied() {
+    // If timeout is set to 0, automatic satisfaction
+    if (_watchdogTimeout == 0) {
+      return true;
+    }
+
+    if (millis() - _lastWatchdogFeedTime < _watchdogTimeout) {
+      return true;
+    }
+    return false;
   }
 
   void Robot::periodicOnCore1() {

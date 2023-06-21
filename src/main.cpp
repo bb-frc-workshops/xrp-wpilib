@@ -40,6 +40,11 @@ char chipID[20];
 // ===================================================
 // Handlers for INBOUND WS Messages
 // ===================================================
+void onDSGenericMessage() {
+  // We use the DS messages to feed the watchdog
+  robot.feedWatchdog();
+}
+
 void onDSEnabledMessage(bool enabled) {
   Serial.print("DS Enabled: ");
   Serial.println(enabled);
@@ -66,6 +71,7 @@ void onGyroInitMessage(std::string gyroName, bool enabled) {
 
 void hookupWSMessageHandlers() {
   // Hook up the event listeners to the message processor
+  wsMsgProcessor.onDSGenericMessage(onDSGenericMessage);
   wsMsgProcessor.onDSEnabledMessage(onDSEnabledMessage);
   wsMsgProcessor.onPWMMessage(onPWMMessage);
   wsMsgProcessor.onEncoderInitMessage(onEncoderInitMessage);

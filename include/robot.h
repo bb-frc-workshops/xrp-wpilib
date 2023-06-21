@@ -40,6 +40,8 @@
 #define ENCODER_DATA_AVAILABLE 0xAA
 #define DIO_DATA_AVAILABLE 0xBB
 
+#define DEFAULT_WATCHDOG_TIMEOUT_MS 1000
+
 namespace xrp {
   class PWMChannel {
     public:
@@ -83,13 +85,19 @@ namespace xrp {
       int getEncoderValueByDeviceId(int deviceId);
       int getEncoderValue(int idx);
 
+      void setWatchdogTimeout(unsigned long timeout);
+      void feedWatchdog();
+
       // Periodic updates needed
       void periodicOnCore1();
 
     private:
       bool _enabled;
+      unsigned long _lastWatchdogFeedTime;
+      unsigned long _watchdogTimeout;
 
       void setPwmValue(int channel, double value, bool override);
+      bool watchdogSatisfied();
 
       // Encoder Values
 

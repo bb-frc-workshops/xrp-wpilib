@@ -14,6 +14,7 @@
 #include "imu.h"
 #include "wpilibws_processor.h"
 #include "config.h"
+#include "watchdog.h"
 
 // #define GYRO_DATA_AVAILABLE 0xCC
 #define IMU_I2C_ADDR 0x6B
@@ -31,6 +32,8 @@ wpilibws::WPILibWSProcessor wsMsgProcessor;
 xrp::Robot robot;
 xrp::LSM6IMU imu;
 
+xrp::Watchdog dsWatchdog{"ds"};
+
 // Status Vars
 NetworkMode netConfigResult;
 
@@ -42,7 +45,8 @@ char chipID[20];
 // ===================================================
 void onDSGenericMessage() {
   // We use the DS messages to feed the watchdog
-  robot.feedWatchdog();
+  robot.watchdog.feed();
+  dsWatchdog.feed();
 }
 
 void onDSEnabledMessage(bool enabled) {
@@ -89,6 +93,8 @@ void pollWsClients() {
 }
 
 void broadcast(std::string msg) {
+  if (!dsWatchdog.satisfied()) return;
+
   for (auto& clientPair : wsClients) {
     clientPair.second.send(msg.c_str());
   }
@@ -197,6 +203,9 @@ unsigned long lastStatusPrintTime = 0;
 // Main (CORE0) Loop
 // This core should process WS messages and update the robot accordingly
 void loop() {
+  // Robot Status
+  robot.checkStatus();
+
   // Do Network Things
   if (server.poll()) {
     auto client = server.accept();
@@ -237,9 +246,9 @@ void loop() {
     }
     else if (data == GYRO_DATA_AVAILABLE) {
       // TODO Send gyroReadings
-      imu.setReadLock(true);
+      // imu.setReadLock(true);
       auto jsonMsg = wsMsgProcessor.makeGyroMessage(imu.getGyroRatesDegPerSec(), imu.getGyroAnglesDeg());
-      imu.setReadLock(false);
+      // imu.setReadLock(false);
       // broadcast(jsonMsg);
     }
 

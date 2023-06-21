@@ -3,6 +3,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "watchdog.h"
+
 #define LEFT_MOTOR_EN 7
 #define LEFT_MOTOR_PH 6
 #define RIGHT_MOTOR_EN 15
@@ -85,20 +87,18 @@ namespace xrp {
       int getEncoderValueByDeviceId(int deviceId);
       int getEncoderValue(int idx);
 
-      void setWatchdogTimeout(unsigned long timeout);
-      void feedWatchdog();
+      void checkStatus();
 
       // Periodic updates needed
       void periodicOnCore1();
 
+      Watchdog watchdog{"robot"};
+
     private:
       bool _enabled;
-      unsigned long _lastWatchdogFeedTime;
-      unsigned long _watchdogTimeout;
 
       void setPwmValue(int channel, double value, bool override);
-      bool watchdogSatisfied();
-
+      
       // Encoder Values
 
       // Onboard Hardware

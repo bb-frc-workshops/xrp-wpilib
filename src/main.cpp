@@ -195,7 +195,6 @@ void setup() {
   Serial.print(WiFi.localIP());
   Serial.print(", port: ");
   Serial.println(3300);
-  
 }
 
 unsigned long lastStatusPrintTime = 0;

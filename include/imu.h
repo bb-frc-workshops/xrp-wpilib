@@ -3,6 +3,8 @@
 #include <Wire.h>
 #include <Adafruit_LSM6DSOX.h>
 
+#include "watchdog.h"
+
 #define GYRO_DATA_AVAILABLE 0xCC
 #define ACCEL_DATA_AVAILBLE 0xDD
 

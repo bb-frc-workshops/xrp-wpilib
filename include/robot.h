@@ -3,6 +3,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "watchdog.h"
+
 #define LEFT_MOTOR_EN 7
 #define LEFT_MOTOR_PH 6
 #define RIGHT_MOTOR_EN 15
@@ -39,6 +41,8 @@
 
 #define ENCODER_DATA_AVAILABLE 0xAA
 #define DIO_DATA_AVAILABLE 0xBB
+
+#define DEFAULT_WATCHDOG_TIMEOUT_MS 1000
 
 namespace xrp {
   class PWMChannel {
@@ -83,14 +87,18 @@ namespace xrp {
       int getEncoderValueByDeviceId(int deviceId);
       int getEncoderValue(int idx);
 
+      void checkStatus();
+
       // Periodic updates needed
       void periodicOnCore1();
+
+      Watchdog watchdog{"robot"};
 
     private:
       bool _enabled;
 
       void setPwmValue(int channel, double value, bool override);
-
+      
       // Encoder Values
 
       // Onboard Hardware

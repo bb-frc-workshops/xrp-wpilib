@@ -10,6 +10,9 @@
 
 #include <Adafruit_LSM6DSOX.h>
 
+#include <WebSockets4WebServer.h>
+#include <WebServer.h>
+
 #include "robot.h"
 #include "imu.h"
 #include "wpilibws_processor.h"
@@ -39,6 +42,9 @@ NetworkMode netConfigResult;
 
 // Chip Identifier
 char chipID[20];
+
+WebServer webServer(3300);
+WebSockets4WebServer wsServer;
 
 // ===================================================
 // Handlers for INBOUND WS Messages
@@ -93,11 +99,12 @@ void pollWsClients() {
 }
 
 void broadcast(std::string msg) {
-  if (!dsWatchdog.satisfied()) return;
+  wsServer.broadcastTXT(msg.c_str());
+  // if (!dsWatchdog.satisfied()) return;
 
-  for (auto& clientPair : wsClients) {
-    clientPair.second.send(msg.c_str());
-  }
+  // for (auto& clientPair : wsClients) {
+  //   clientPair.second.send(msg.c_str());
+  // }
 }
 
 void onWsMessage(WebsocketsClient& client, WebsocketsMessage message) {
@@ -129,6 +136,31 @@ void onWsEvent(WebsocketsClient& client, WebsocketsEvent event, String data) {
   }
 }
 
+// NEW WebSockets
+void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
+  switch (type) {
+    case WStype_DISCONNECTED:
+      Serial.printf("[%u] Disconnected\n", num);
+      break;
+    case WStype_CONNECTED: {
+        IPAddress ip = wsServer.remoteIP(num);
+        Serial.printf("[%u] Connection from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
+      }
+      break;
+    case WStype_TEXT: {
+        StaticJsonDocument<512> jsonDoc;
+        DeserializationError error = deserializeJson(jsonDoc, payload);
+        if (error) {
+          Serial.println(error.f_str());
+          break;
+        }
+
+        wsMsgProcessor.processMessage(jsonDoc);
+      }
+      break;
+  }
+}
+
 // ===================================================
 // Boot-Up and Main Control Flow
 // ===================================================
@@ -138,7 +170,7 @@ void setup() {
   pico_unique_board_id_t id_out;
   pico_get_unique_board_id(&id_out);
   sprintf(chipID, "%02x%02x-%02x%02x", id_out.id[4], id_out.id[5], id_out.id[6], id_out.id[7]);
-  
+
   // Start up the File system and serial connections
   LittleFS.begin();
   Serial.begin(115200);
@@ -162,7 +194,7 @@ void setup() {
   // TODO Potentially set the WiFi SSID to include the last 4 bytes of unique_board_id
   Serial.print("ChipID: ");
   Serial.println(chipID);
-  
+
 
   // Load configuration (and create default if one does not exist)
   config = loadConfiguration(std::string(chipID));
@@ -182,19 +214,30 @@ void setup() {
 
   // TODO Set up robot hardware overlays based off configuration
 
-
   // Set up WebSocket messages
   hookupWSMessageHandlers();
 
-  // Set up the server to listen AND only respond to an appropriate URI
-  server.listen(3300, "/wpilibws");
+  // EXPT Use New WS Lib
+  webServer.on("/", []() {
+    webServer.send(200, "text/plain", "You probably want the websocket on /wpilibws\r\n");
+  });
 
-  Serial.print(server.available() ? "WS Server running and ready on " : "Server not running on ");
-  Serial.println("XRP Robot");
-  Serial.print("IP Address: ");
-  Serial.print(WiFi.localIP());
-  Serial.print(", port: ");
-  Serial.println(3300);
+  webServer.addHook(wsServer.hookForWebserver("/wpilibws", onWebSocketEvent));
+
+  webServer.begin();
+  Serial.println("HTTP Server started on port 3300");
+  Serial.println("WebSocket server started on /wpilibws on port 3300");
+  Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
+
+  // // Set up the server to listen AND only respond to an appropriate URI
+  // server.listen(3300, "/wpilibws");
+
+  // Serial.print(server.available() ? "WS Server running and ready on " : "Server not running on ");
+  // Serial.println("XRP Robot");
+  // Serial.print("IP Address: ");
+  // Serial.print(WiFi.localIP());
+  // Serial.print(", port: ");
+  // Serial.println(3300);
 }
 
 unsigned long lastStatusPrintTime = 0;
@@ -205,26 +248,29 @@ void loop() {
   // Robot Status
   robot.checkStatus();
 
-  // Do Network Things
-  if (server.poll()) {
-    auto client = server.accept();
-    client.onMessage(onWsMessage);
-    client.onEvent(onWsEvent);
+  webServer.handleClient();
+  wsServer.loop();
 
-    if (client.available()) {
-      Serial.println("Client accepted...");
+  // // Do Network Things
+  // if (server.poll()) {
+  //   auto client = server.accept();
+  //   client.onMessage(onWsMessage);
+  //   client.onEvent(onWsEvent);
 
-      // Hook up events
-      wsClients.push_back(std::make_pair(nextClientId, client));
-      client.setId(nextClientId);
-      nextClientId++;
+  //   if (client.available()) {
+  //     Serial.println("Client accepted...");
+
+  //     // Hook up events
+  //     wsClients.push_back(std::make_pair(nextClientId, client));
+  //     client.setId(nextClientId);
+  //     nextClientId++;
 
 
-      Serial.println("Event Hookup complete");
-    }
-  }
+  //     Serial.println("Event Hookup complete");
+  //   }
+  // }
 
-  pollWsClients();
+  // pollWsClients();
 
   while (rp2040.fifo.available()) {
     uint32_t data = rp2040.fifo.pop();

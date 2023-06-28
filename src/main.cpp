@@ -26,10 +26,6 @@ using namespace websockets;
 
 XRPConfiguration config;
 
-WebsocketsServer server;
-std::vector< std::pair<int, WebsocketsClient> > wsClients;
-int nextClientId = 1;
-
 wpilibws::WPILibWSProcessor wsMsgProcessor;
 
 xrp::Robot robot;
@@ -92,51 +88,11 @@ void hookupWSMessageHandlers() {
 // ===================================================
 // WebSocket management functions
 // ===================================================
-void pollWsClients() {
-  for (auto& clientPair : wsClients) {
-    clientPair.second.poll();
-  }
-}
 
 void broadcast(std::string msg) {
   wsServer.broadcastTXT(msg.c_str());
-  // if (!dsWatchdog.satisfied()) return;
-
-  // for (auto& clientPair : wsClients) {
-  //   clientPair.second.send(msg.c_str());
-  // }
 }
 
-void onWsMessage(WebsocketsClient& client, WebsocketsMessage message) {
-  if (message.isText()) {
-    // Process the message
-    StaticJsonDocument<512> jsonDoc;
-    DeserializationError error = deserializeJson(jsonDoc, message.data());
-    if (error) {
-      Serial.println(error.f_str());
-      return;
-    }
-
-    // Hand this off to our processor
-    wsMsgProcessor.processMessage(jsonDoc);
-  }
-}
-
-void onWsEvent(WebsocketsClient& client, WebsocketsEvent event, String data) {
-  if (event == WebsocketsEvent::ConnectionClosed) {
-    Serial.println("Client Connection Closed");
-    for (auto it = wsClients.begin(); it != wsClients.end(); it++) {
-      if (it->first == client.getId()) {
-        Serial.print("Removing Client ID ");
-        Serial.println(client.getId());
-        wsClients.erase(it);
-        break;
-      }
-    }
-  }
-}
-
-// NEW WebSockets
 void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
   switch (type) {
     case WStype_DISCONNECTED:
@@ -217,7 +173,7 @@ void setup() {
   // Set up WebSocket messages
   hookupWSMessageHandlers();
 
-  // EXPT Use New WS Lib
+  // Set up the web server and websocket server hooks
   webServer.on("/", []() {
     webServer.send(200, "text/plain", "You probably want the websocket on /wpilibws\r\n");
   });
@@ -228,16 +184,6 @@ void setup() {
   Serial.println("HTTP Server started on port 3300");
   Serial.println("WebSocket server started on /wpilibws on port 3300");
   Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
-
-  // // Set up the server to listen AND only respond to an appropriate URI
-  // server.listen(3300, "/wpilibws");
-
-  // Serial.print(server.available() ? "WS Server running and ready on " : "Server not running on ");
-  // Serial.println("XRP Robot");
-  // Serial.print("IP Address: ");
-  // Serial.print(WiFi.localIP());
-  // Serial.print(", port: ");
-  // Serial.println(3300);
 }
 
 unsigned long lastStatusPrintTime = 0;
@@ -250,27 +196,6 @@ void loop() {
 
   webServer.handleClient();
   wsServer.loop();
-
-  // // Do Network Things
-  // if (server.poll()) {
-  //   auto client = server.accept();
-  //   client.onMessage(onWsMessage);
-  //   client.onEvent(onWsEvent);
-
-  //   if (client.available()) {
-  //     Serial.println("Client accepted...");
-
-  //     // Hook up events
-  //     wsClients.push_back(std::make_pair(nextClientId, client));
-  //     client.setId(nextClientId);
-  //     nextClientId++;
-
-
-  //     Serial.println("Event Hookup complete");
-  //   }
-  // }
-
-  // pollWsClients();
 
   while (rp2040.fifo.available()) {
     uint32_t data = rp2040.fifo.pop();

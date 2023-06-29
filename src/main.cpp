@@ -24,6 +24,13 @@
 
 using namespace websockets;
 
+// Resource strings
+extern "C" {
+const unsigned char* GetResource_index_html(size_t* len);
+const unsigned char* GetResource_normalize_css(size_t* len);
+const unsigned char* GetResource_skeleton_css(size_t* len);
+}
+
 XRPConfiguration config;
 
 wpilibws::WPILibWSProcessor wsMsgProcessor;
@@ -175,7 +182,18 @@ void setup() {
 
   // Set up the web server and websocket server hooks
   webServer.on("/", []() {
-    webServer.send(200, "text/plain", "You probably want the websocket on /wpilibws\r\n");
+    size_t len;
+    webServer.send(200, "text/html", GetResource_index_html(&len), len);
+  });
+
+  webServer.on("/normalize.css", []() {
+    size_t len;
+    webServer.send(200, "text/css", GetResource_normalize_css(&len), len);
+  });
+
+  webServer.on("/skeleton.css", []() {
+    size_t len;
+    webServer.send(200, "text/css", GetResource_skeleton_css(&len), len);
   });
 
   webServer.addHook(wsServer.hookForWebserver("/wpilibws", onWebSocketEvent));

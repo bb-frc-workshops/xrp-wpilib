@@ -29,6 +29,7 @@ extern "C" {
 const unsigned char* GetResource_index_html(size_t* len);
 const unsigned char* GetResource_normalize_css(size_t* len);
 const unsigned char* GetResource_skeleton_css(size_t* len);
+const unsigned char* GetResource_xrp_js(size_t* len);
 }
 
 XRPConfiguration config;
@@ -90,6 +91,68 @@ void hookupWSMessageHandlers() {
   wsMsgProcessor.onEncoderInitMessage(onEncoderInitMessage);
   wsMsgProcessor.onDIOMessage(onDIOMessage);
   wsMsgProcessor.onGyroInitMessage(onGyroInitMessage);
+}
+
+// ===================================================
+// Web Server management functions
+// ===================================================
+void setupWebServerRoutes() {
+  webServer.on("/", []() {
+    size_t len;
+    webServer.send(200, "text/html", GetResource_index_html(&len), len);
+  });
+
+  webServer.on("/normalize.css", []() {
+    size_t len;
+    webServer.send(200, "text/css", GetResource_normalize_css(&len), len);
+  });
+
+  webServer.on("/skeleton.css", []() {
+    size_t len;
+    webServer.send(200, "text/css", GetResource_skeleton_css(&len), len);
+  });
+
+  webServer.on("/xrp.js", []() {
+    size_t len;
+    webServer.send(200, "text/javascript", GetResource_xrp_js(&len), len);
+  });
+
+  webServer.on("/getconfig", []() {
+    File f = LittleFS.open("/config.json", "r");
+    if (webServer.streamFile(f, "text/json") != f.size()) {
+      Serial.println("Sent less data than expected");
+    }
+    f.close();
+  });
+
+  webServer.on("/resetconfig", []() {
+    if (webServer.method() != HTTP_POST) {
+      webServer.send(405, "text/plain", "Method Not Allowed");
+      return;
+    }
+    File f = LittleFS.open("/config.json", "w");
+    f.print(generateDefaultConfig(chipID).c_str());
+    f.close();
+    webServer.send(200, "text/plain", "OK");
+  });
+
+  webServer.on("/saveconfig", []() {
+    if (webServer.method() != HTTP_POST) {
+      webServer.send(405, "text/plain", "Method Not Allowed");
+      return;
+    }
+    auto postBody = webServer.arg("plain");
+    Serial.println("POST: ");
+    Serial.println(postBody);
+
+    // TODO We could do additional verification
+    File f = LittleFS.open("/config.json", "w");
+    f.print(postBody);
+    f.close();
+    Serial.println("Configuration Saved");
+
+    webServer.send(200, "text/plain", "OK");
+  });
 }
 
 // ===================================================
@@ -181,20 +244,7 @@ void setup() {
   hookupWSMessageHandlers();
 
   // Set up the web server and websocket server hooks
-  webServer.on("/", []() {
-    size_t len;
-    webServer.send(200, "text/html", GetResource_index_html(&len), len);
-  });
-
-  webServer.on("/normalize.css", []() {
-    size_t len;
-    webServer.send(200, "text/css", GetResource_normalize_css(&len), len);
-  });
-
-  webServer.on("/skeleton.css", []() {
-    size_t len;
-    webServer.send(200, "text/css", GetResource_skeleton_css(&len), len);
-  });
+  setupWebServerRoutes();
 
   webServer.addHook(wsServer.hookForWebserver("/wpilibws", onWebSocketEvent));
 

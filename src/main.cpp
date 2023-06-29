@@ -2,6 +2,7 @@
 #include <ArduinoWebsockets.h>
 #include <ArduinoJson.h>
 #include <LittleFS.h>
+#include <SingleFileDrive.h>
 
 #include <WiFi.h>
 #include <WiFiMulti.h>
@@ -187,6 +188,21 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t lengt
   }
 }
 
+void writeStatusToDisk() {
+  File f = LittleFS.open("/status.txt", "w");
+  f.printf("Chip ID: %s\n", chipID);
+  f.printf("WiFi Mode: %s\n", (netConfigResult == NetworkMode::AP ? "AP" : "STA"));
+  if (netConfigResult == NetworkMode::AP) {
+    f.printf("AP SSID: %s\n", config.networkConfig.defaultAPName.c_str());
+    f.printf("AP PASS: %s\n", config.networkConfig.defaultAPPassword.c_str());
+  }
+  else {
+    f.printf("Connected to: %s\n", WiFi.SSID());
+  }
+  f.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
+  f.close();
+}
+
 // ===================================================
 // Boot-Up and Main Control Flow
 // ===================================================
@@ -252,6 +268,10 @@ void setup() {
   Serial.println("HTTP Server started on port 3300");
   Serial.println("WebSocket server started on /wpilibws on port 3300");
   Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
+
+  // Write current status file
+  writeStatusToDisk();
+  singleFileDrive.begin("status.txt", "XRP-Status.txt");
 }
 
 unsigned long lastStatusPrintTime = 0;

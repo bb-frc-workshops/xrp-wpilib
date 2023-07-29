@@ -2,6 +2,7 @@
 #include <ArduinoWebsockets.h>
 #include <ArduinoJson.h>
 #include <LittleFS.h>
+#include <SingleFileDrive.h>
 
 #include <WiFi.h>
 #include <WiFiMulti.h>
@@ -9,6 +10,9 @@
 #include <vector>
 
 #include <Adafruit_LSM6DSOX.h>
+
+#include <WebSockets4WebServer.h>
+#include <WebServer.h>
 
 #include "robot.h"
 #include "imu.h"
@@ -21,11 +25,15 @@
 
 using namespace websockets;
 
-XRPConfiguration config;
+// Resource strings
+extern "C" {
+const unsigned char* GetResource_index_html(size_t* len);
+const unsigned char* GetResource_normalize_css(size_t* len);
+const unsigned char* GetResource_skeleton_css(size_t* len);
+const unsigned char* GetResource_xrp_js(size_t* len);
+}
 
-WebsocketsServer server;
-std::vector< std::pair<int, WebsocketsClient> > wsClients;
-int nextClientId = 1;
+XRPConfiguration config;
 
 wpilibws::WPILibWSProcessor wsMsgProcessor;
 
@@ -39,6 +47,9 @@ NetworkMode netConfigResult;
 
 // Chip Identifier
 char chipID[20];
+
+WebServer webServer(3300);
+WebSockets4WebServer wsServer;
 
 // ===================================================
 // Handlers for INBOUND WS Messages
@@ -84,49 +95,112 @@ void hookupWSMessageHandlers() {
 }
 
 // ===================================================
-// WebSocket management functions
+// Web Server management functions
 // ===================================================
-void pollWsClients() {
-  for (auto& clientPair : wsClients) {
-    clientPair.second.poll();
-  }
-}
+void setupWebServerRoutes() {
+  webServer.on("/", []() {
+    size_t len;
+    webServer.send(200, "text/html", GetResource_index_html(&len), len);
+  });
 
-void broadcast(std::string msg) {
-  if (!dsWatchdog.satisfied()) return;
+  webServer.on("/normalize.css", []() {
+    size_t len;
+    webServer.send(200, "text/css", GetResource_normalize_css(&len), len);
+  });
 
-  for (auto& clientPair : wsClients) {
-    clientPair.second.send(msg.c_str());
-  }
-}
+  webServer.on("/skeleton.css", []() {
+    size_t len;
+    webServer.send(200, "text/css", GetResource_skeleton_css(&len), len);
+  });
 
-void onWsMessage(WebsocketsClient& client, WebsocketsMessage message) {
-  if (message.isText()) {
-    // Process the message
-    StaticJsonDocument<512> jsonDoc;
-    DeserializationError error = deserializeJson(jsonDoc, message.data());
-    if (error) {
-      Serial.println(error.f_str());
+  webServer.on("/xrp.js", []() {
+    size_t len;
+    webServer.send(200, "text/javascript", GetResource_xrp_js(&len), len);
+  });
+
+  webServer.on("/getconfig", []() {
+    File f = LittleFS.open("/config.json", "r");
+    if (webServer.streamFile(f, "text/json") != f.size()) {
+      Serial.println("Sent less data than expected");
+    }
+    f.close();
+  });
+
+  webServer.on("/resetconfig", []() {
+    if (webServer.method() != HTTP_POST) {
+      webServer.send(405, "text/plain", "Method Not Allowed");
       return;
     }
+    File f = LittleFS.open("/config.json", "w");
+    f.print(generateDefaultConfig(chipID).c_str());
+    f.close();
+    webServer.send(200, "text/plain", "OK");
+  });
 
-    // Hand this off to our processor
-    wsMsgProcessor.processMessage(jsonDoc);
+  webServer.on("/saveconfig", []() {
+    if (webServer.method() != HTTP_POST) {
+      webServer.send(405, "text/plain", "Method Not Allowed");
+      return;
+    }
+    auto postBody = webServer.arg("plain");
+    Serial.println("POST: ");
+    Serial.println(postBody);
+
+    // TODO We could do additional verification
+    File f = LittleFS.open("/config.json", "w");
+    f.print(postBody);
+    f.close();
+    Serial.println("Configuration Saved");
+
+    webServer.send(200, "text/plain", "OK");
+  });
+}
+
+// ===================================================
+// WebSocket management functions
+// ===================================================
+
+void broadcast(std::string msg) {
+  wsServer.broadcastTXT(msg.c_str());
+}
+
+void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
+  switch (type) {
+    case WStype_DISCONNECTED:
+      Serial.printf("[%u] Disconnected\n", num);
+      break;
+    case WStype_CONNECTED: {
+        IPAddress ip = wsServer.remoteIP(num);
+        Serial.printf("[%u] Connection from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
+      }
+      break;
+    case WStype_TEXT: {
+        StaticJsonDocument<512> jsonDoc;
+        DeserializationError error = deserializeJson(jsonDoc, payload);
+        if (error) {
+          Serial.println(error.f_str());
+          break;
+        }
+
+        wsMsgProcessor.processMessage(jsonDoc);
+      }
+      break;
   }
 }
 
-void onWsEvent(WebsocketsClient& client, WebsocketsEvent event, String data) {
-  if (event == WebsocketsEvent::ConnectionClosed) {
-    Serial.println("Client Connection Closed");
-    for (auto it = wsClients.begin(); it != wsClients.end(); it++) {
-      if (it->first == client.getId()) {
-        Serial.print("Removing Client ID ");
-        Serial.println(client.getId());
-        wsClients.erase(it);
-        break;
-      }
-    }
+void writeStatusToDisk() {
+  File f = LittleFS.open("/status.txt", "w");
+  f.printf("Chip ID: %s\n", chipID);
+  f.printf("WiFi Mode: %s\n", (netConfigResult == NetworkMode::AP ? "AP" : "STA"));
+  if (netConfigResult == NetworkMode::AP) {
+    f.printf("AP SSID: %s\n", config.networkConfig.defaultAPName.c_str());
+    f.printf("AP PASS: %s\n", config.networkConfig.defaultAPPassword.c_str());
   }
+  else {
+    f.printf("Connected to: %s\n", WiFi.SSID());
+  }
+  f.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
+  f.close();
 }
 
 // ===================================================
@@ -138,7 +212,7 @@ void setup() {
   pico_unique_board_id_t id_out;
   pico_get_unique_board_id(&id_out);
   sprintf(chipID, "%02x%02x-%02x%02x", id_out.id[4], id_out.id[5], id_out.id[6], id_out.id[7]);
-  
+
   // Start up the File system and serial connections
   LittleFS.begin();
   Serial.begin(115200);
@@ -162,7 +236,7 @@ void setup() {
   // TODO Potentially set the WiFi SSID to include the last 4 bytes of unique_board_id
   Serial.print("ChipID: ");
   Serial.println(chipID);
-  
+
 
   // Load configuration (and create default if one does not exist)
   config = loadConfiguration(std::string(chipID));
@@ -182,19 +256,22 @@ void setup() {
 
   // TODO Set up robot hardware overlays based off configuration
 
-
   // Set up WebSocket messages
   hookupWSMessageHandlers();
 
-  // Set up the server to listen AND only respond to an appropriate URI
-  server.listen(3300, "/wpilibws");
+  // Set up the web server and websocket server hooks
+  setupWebServerRoutes();
 
-  Serial.print(server.available() ? "WS Server running and ready on " : "Server not running on ");
-  Serial.println("XRP Robot");
-  Serial.print("IP Address: ");
-  Serial.print(WiFi.localIP());
-  Serial.print(", port: ");
-  Serial.println(3300);
+  webServer.addHook(wsServer.hookForWebserver("/wpilibws", onWebSocketEvent));
+
+  webServer.begin();
+  Serial.println("HTTP Server started on port 3300");
+  Serial.println("WebSocket server started on /wpilibws on port 3300");
+  Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
+
+  // Write current status file
+  writeStatusToDisk();
+  singleFileDrive.begin("status.txt", "XRP-Status.txt");
 }
 
 unsigned long lastStatusPrintTime = 0;
@@ -205,26 +282,8 @@ void loop() {
   // Robot Status
   robot.checkStatus();
 
-  // Do Network Things
-  if (server.poll()) {
-    auto client = server.accept();
-    client.onMessage(onWsMessage);
-    client.onEvent(onWsEvent);
-
-    if (client.available()) {
-      Serial.println("Client accepted...");
-
-      // Hook up events
-      wsClients.push_back(std::make_pair(nextClientId, client));
-      client.setId(nextClientId);
-      nextClientId++;
-
-
-      Serial.println("Event Hookup complete");
-    }
-  }
-
-  pollWsClients();
+  webServer.handleClient();
+  wsServer.loop();
 
   while (rp2040.fifo.available()) {
     uint32_t data = rp2040.fifo.pop();

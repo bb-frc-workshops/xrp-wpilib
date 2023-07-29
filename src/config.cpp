@@ -70,11 +70,12 @@ std::string generateDefaultConfig(std::string chipIdent) {
   
   network["mode"] = defaultConfig.networkConfig.mode == NetworkMode::AP ? "AP" : "STA";
 
+  // Create a test network object
+  JsonObject network1 = prefNetworks.createNestedObject();
+  network1["ssid"] = "Test Network 1";
+  network1["password"] = "Test Password";
   // DEMO ONLY
-  // JsonObject network1 = prefNetworks.createNestedObject();
-  // network1["ssid"] = "Test Network 1";
-  // network1["password"] = "Test Password";
-
+  
   // JsonObject network2 = prefNetworks.createNestedObject();
   // network2["ssid"] = "Test Network 2";
   // network2["password"] = "Test Password";

@@ -307,7 +307,7 @@ void loop() {
       // imu.setReadLock(true);
       auto jsonMsg = wsMsgProcessor.makeGyroMessage(imu.getGyroRatesDegPerSec(), imu.getGyroAnglesDeg());
       // imu.setReadLock(false);
-      broadcast(jsonMsg);
+      // broadcast(jsonMsg);
     }
 
   }
